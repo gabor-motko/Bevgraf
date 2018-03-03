@@ -9,6 +9,8 @@
 
 #define STARTSPEED 150
 #define MAXSPEED 500
+#define MINSPEED 10
+#define ACCELERATION 200
 
 typedef struct TWindow
 {
@@ -73,7 +75,8 @@ vec2 vecToLine(vec2 p1, vec2 p2, vec2 point)
 	return p - point;
 }
 
-vec2 getNormal(vec2 p1, vec2 p2, bool unit)
+//p1-p2 egyenes normálvektora
+vec2 getNormal(vec2 p1, vec2 p2, bool unit = true)
 {
 	vec2 dir = p2 - p1;
 	if (unit)
@@ -107,9 +110,10 @@ void drawCircle(vec2 pos, float _radius, bool filled, int detail = 18)
 }
 
 //--- LINES
+
+//p1 és p2 ponton átmenõ szakasz vagy egyenes rajzolása
 void drawLineByPoints(vec2 p1, vec2 p2, bool infinite, bool handles = true)
 {
-
 	vec2 end1, end2;
 	if (infinite)
 	{
@@ -137,7 +141,7 @@ void drawLineByPoints(vec2 p1, vec2 p2, bool infinite, bool handles = true)
 			intersect[3] = getIntersect(p1, p2, vec2(0, area.top), vec2(1, area.top));
 
 			vec2 dir = p2 - p1;
-			//end1 ha skalárszorzat pozitív, end2 ha negatív, különben valamit nagyon elbasztam.
+			//end1 ha skalárszorzat pozitív, end2 ha negatív
 			end1 = end2 = NULL;
 			for (int i = 0; i <= 3; ++i)
 			{
@@ -169,12 +173,12 @@ void drawLineByPoints(vec2 p1, vec2 p2, bool infinite, bool handles = true)
 		glColor3f(0.0f, 0.0f, 1.0f);
 		drawCircle(p1, handleRadius, true, 8);
 		drawCircle(p2, handleRadius, true, 8);
-	}
-	if (infinite)
-	{
-		glColor3f(1.0f, 0.0f, 1.0f);
-		drawCircle(end1, 3, true);
-		drawCircle(end2, 3, true);
+		if (infinite)
+		{
+			glColor3f(1.0f, 0.0f, 1.0f);
+			drawCircle(end1, 3, true);
+			drawCircle(end2, 3, true);
+		}
 	}
 }
 
@@ -208,7 +212,7 @@ public:
 		Circle();
 	}
 	//Sebesség nagysága
-	vec2 speed()
+	float speed()
 	{
 		return length(vel);
 	}
@@ -224,8 +228,8 @@ public:
 		drawCircle(pos, radius, filled);
 		if (visualize)
 		{
-			drawLineByPoints(ball.pos, ball.pos + vecToLine(points[HANDLE_P1], points[HANDLE_P2], ball.pos), false);
-			drawLineByPoints(ball.pos, ball.pos + ball.direction() * ball.radius, false);
+			drawLineByPoints(ball.pos, ball.pos + vecToLine(points[HANDLE_P1], points[HANDLE_P2], ball.pos), false, false);
+			drawLineByPoints(ball.pos, ball.pos + ball.direction() * ball.radius, false, false);
 		}
 	}
 	//Azonnali visszaverõdés adott normálvektorról
@@ -241,12 +245,10 @@ public:
 //Ellenõrzi, hogy a labdának vissza kell-e pattannia egy egyenesrõl.
 void checkBounces()
 {
+	//P1-P2 egyenesrõl csak akkor verõdjön vissza, ha metszi azt és a zöld területre nézõ oldala felé halad
 	vec2 nrm = getNormal(points[HANDLE_P1], points[HANDLE_P2], true);
 	vec2 distv = vecToLine(points[HANDLE_P1], points[HANDLE_P2], ball.pos);
-
 	float speedToLine = dot(nrm, ball.direction());
-
-	
 	if (length(distv) <= ball.radius && speedToLine < 0)
 		ball.bounce(nrm, false);
 	
@@ -261,6 +263,7 @@ void checkBounces()
 }
 
 //--- BOUNDARIES
+//Határoló téglalap és sarokpontok rajzolása
 void drawBoundaries()
 {
 	glColor3f(0.0f, 0.0f, 0.0f);
@@ -275,6 +278,7 @@ void drawBoundaries()
 }
 
 //--- BACKGROUND
+//Háttér
 void drawBackground()
 {
 	vec2 shift = vec2(30, 30);
@@ -286,10 +290,11 @@ void drawBackground()
 		for (col = (int)(area.left / shift.x) + 1; col * shift.x + (row % 2 ? 0.0f : shift.x / 2) < area.right; ++col)
 		{
 			nextPos = vec2(shift.x * col + (row % 2 ? 0.0f : shift.x / 2), shift.y * row);
-			//bool nPlus = false;
+			
 			vec2 nrm = getNormal(points[HANDLE_P1], points[HANDLE_P2], true);
 			vec2 p = vecToLine(points[HANDLE_P1], points[HANDLE_P2], nextPos);
 			bool nPlus = dot(nrm, p) > 0;
+
 			if (nPlus)
 				glColor3f(1.0f, 0.0f, 0.0f);
 			else
@@ -332,6 +337,7 @@ void mouseButtonPressed(int button, int state, int x, int y)
 	mouseStates[button] = !state;
 	if (state == GLUT_DOWN)
 	{
+		//Ha az egérgomb le van nyomva, kijelölöm a kurzor alatti pontot mozgatásra
 		for (int i = 0; i < 6; ++i)
 		{
 			if (dist(points[i], vec2(x, win.height - y)) < handleRadius)
@@ -348,6 +354,7 @@ void mouseButtonPressed(int button, int state, int x, int y)
 
 void mouseMove(int x, int y)
 {
+	//Kiválasztott pont mozgatása, ha a bal egérgomb le van nyomva
 	if (mouseStates[0])
 	{
 		movePoint(selectedPoint, vec2(x, win.height - y));
@@ -358,9 +365,14 @@ void keyOps(int val)
 {
 	if (keyStates['x'])
 		exit(0);
+	if (keyStates['w'] && ball.speed() < MAXSPEED)
+		ball.vel += ball.direction() * ACCELERATION * delta;
+	if (keyStates['s'] && ball.speed() > MINSPEED)
+		ball.vel -= ball.direction() * ACCELERATION * delta;
 
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
 	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
+
 	glutPostRedisplay();
 	glutTimerFunc(5, keyOps, 0);
 }
@@ -370,17 +382,7 @@ void keyDown(unsigned char key, int x, int y)
 	keyStates[key] = true;
 }
 
-void keyDown(int key, int x, int y)
-{
-	keyStates[key] = true;
-}
-
 void keyUp(unsigned char key, int x, int y)
-{
-	keyStates[key] = false;
-}
-
-void keyUp(int key, int x, int y)
 {
 	keyStates[key] = false;
 }
@@ -417,19 +419,18 @@ void init()
 	gluOrtho2D(0.0f, win.width, 0.0f, win.height);
 
 	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-
 }
 void drawScene()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 	glColor3f(0.0, 0.0, 0.0);
 
-	//Process physics
+	//Fizika
 	getDelta();
 	ball.pos += ball.vel * delta;
 	checkBounces();
 
-	//Draw objects
+	//Objektumok kirajzolása
 	drawBoundaries();
 	drawBackground();
 	drawLineByPoints(points[HANDLE_P1], points[HANDLE_P2], true, true);
@@ -448,8 +449,6 @@ int main(int argc, char * argv[])
 			visualize = true;
 	}
 	srand(time(NULL));
-
-	printf("left: %d\nright: %d\ntop: %d\nbottom: %d\n", area.left, area.right, area.top, area.bottom);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
