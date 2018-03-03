@@ -55,7 +55,21 @@ double currentTime, previousTime, delta;
 
 #pragma endregion
 
-#pragma region SHAPES
+#pragma region GEOMETRY
+
+float distFromLine(vec2 p1, vec2 p2, vec2 point)
+{
+	float numerator = fabs((p2.y - p1.y) * point.x - (p2.x - p1.x) * point.y + p2.x * p1.y - p2.y * p1.x);
+	float denominator = sqrt(pow(p2.y - p1.y, 2) + pow(p2.x - p1.x, 2));
+	return numerator / denominator;
+}
+
+vec2 vecToLine(vec2 p1, vec2 p2, vec2 point)
+{
+	vec2 v = normalize(p2 - p1);
+	vec2 p = p1 + (dot(point - p1, v) * v);
+	return point - p;
+}
 
 //--- CIRCLE
 //Kör rajzolása üres vagy teli sokszögként
@@ -109,7 +123,32 @@ public:
 	{
 		drawCircle(pos, radius, false);
 	}
+	void bounce(vec2 normal, bool isUnit = false)
+	{
+		vec2 n = normal;
+		if (!isUnit)
+			n = normalize(n);
+		this->vel = this->vel - 2 * dot(this->vel, n) * n;
+	}
 } ball;
+
+void checkBounces()
+{
+	float dist = distFromLine(points[HANDLE_P1], points[HANDLE_P2], ball.pos);
+	float speedToLine = length(vecToLine(points[HANDLE_P1], points[HANDLE_P2], ball.vel));
+	vec2 dir = points[HANDLE_P2] - points[HANDLE_P1];
+	vec2 nrm = vec2(dir.y, -dir.x);
+	if (dist <= ball.radius && speedToLine > 0)
+		ball.bounce(nrm, false);
+	if(ball.pos.x + ball.radius >= area.right)
+		ball.bounce(vec2(-1, 0), false);
+	if (ball.pos.x - ball.radius <= area.left)
+		ball.bounce(vec2(1, 0), false);
+	if (ball.pos.y + ball.radius >= area.top)
+		ball.bounce(vec2(0, -1), false);
+	if (ball.pos.y - ball.radius <= area.bottom)
+		ball.bounce(vec2(0, 1), false);
+}
 
 //--- BOUNDARIES
 void drawBoundaries()
@@ -249,6 +288,8 @@ void drawScene()
 
 	//Process physics
 	getDelta();
+	ball.pos += ball.vel * delta;
+	checkBounces();
 
 	//ball.pos += ball.vel * delta;
 
