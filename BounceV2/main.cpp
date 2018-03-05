@@ -130,7 +130,6 @@ void drawLineByPoints(vec2 p1, vec2 p2, bool infinite, bool handles = true)
 		else
 		{
 			vec2 intersect[4];
-			bool valid[4] = { true, true, true, true };
 			//bal
 			intersect[0] = getIntersect(p1, p2, vec2(area.left, 0), vec2(area.left, 1));
 			//jobb
