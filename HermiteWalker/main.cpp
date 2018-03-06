@@ -38,8 +38,20 @@ typedef struct TArea
 } AREA;
 WINDOW win = { 800, 600 };
 AREA area = { 0, 800, 0, 600 };
+typedef struct TMouse
+{
+	int x, y;
+	TMouse(int _x, int _y)
+	{
+		x = _x;
+		y = _y;
+	}
+} MOUSE;
+MOUSE mouse;
 
-vec2 * points = new vec2[4]();
+//vec2 * points = new vec2[4]();
+std::vector<vec2> points;
+int selectedPoint = -1;
 float handleRadius = 5;
 
 bool * const keyStates = new bool[256]();
@@ -90,16 +102,29 @@ void drawCircle(vec2 pos, float _radius, bool filled, int detail = 18)
 
 void mouseButtonPressed(int button, int state, int x, int y)
 {
+	mouseStates[button] = !state;
+	mouse.x = x;
+	mouse.y = win.height - y;
 }
 
 void mouseMove(int x, int y)
 {
+	mouse.x = x;
+	mouse.y = win.height - y;
 }
 
 void keyOps(int val)
 {
 	if (keyStates['x'])
 		exit(0);
+
+	if (mouseStates[GLUT_LEFT_BUTTON] == GLUT_DOWN && mousePreviousStates[GLUT_LEFT_BUTTON] == GLUT_UP)
+	{
+		for (int i = 0; i < points.size() && points.size() > 0; ++i)
+		{
+
+		}
+	}
 
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
 	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
