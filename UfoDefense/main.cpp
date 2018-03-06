@@ -62,9 +62,56 @@ void drawEllipse(vec2 f1, vec2 f2, float a, float b, bool filled, int detail)
 	glEnd();
 }
 
+#pragma endregion
 
+#pragma region GAME
+
+class Target
+{
+public:
+	//Pozíció - a félkör középpontja
+	vec2 pos;
+	//Sebesség
+	vec2 vel;
+	//Fókuszpontok
+	vec2 foci[2];
+};
+
+class Bullet
+{
+public:
+	static const vec3 color;
+	static const float radius;
+	static const int detail;
+	//Pozíció
+	vec2 pos;
+	//Sebességvektor
+	vec2 vel;
+	//Konstruktor
+	Bullet(vec2 _pos, vec2 _vel)
+	{
+		this->pos = _pos;
+		this->vel = _vel;
+	}
+	//Rajzolás
+	void draw()
+	{
+		drawCircle(this->pos, this->radius, true, this->detail);
+	}
+	//Fizika
+	void physics()
+	{
+		this->pos += this->vel * delta;
+	}
+	//Ütközés
+	bool collision()
+	{
+
+	}
+};
 
 #pragma endregion
+
 
 #pragma region INPUT
 
@@ -154,8 +201,13 @@ void drawScene()
 
 #pragma endregion
 
+const vec3 Bullet::color = vec3(0.0f, 0.0f, 0.0f);
+const float Bullet::radius = 5.0f;
+const int Bullet::detail = 6;
+
 int main(int argc, char * argv[])
 {
+
 	srand(time(NULL));
 
 	glutInit(&argc, argv);
