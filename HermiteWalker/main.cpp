@@ -157,12 +157,25 @@ void drawAnimation(float t)
 	vec2 pos = curve.point(ts, false);
 	vec2 dir = normalize(curve.point(ts, true));
 	vec2 nrm = vec2(-dir.y, dir.x);
-	glColor3f(0.0f, 1.0f, 0.0f);
+
+	float head_r = 4.0f;
+	vec2 head = pos + nrm * 20;
+	vec2 hand1 = pos + nrm * 15;
+	vec3 hand2 = pos + translate(vec2(5.0f, 0.0f)) * vec3((nrm * 20).x, (nrm * 20).y, 0);
+	vec2 leg1 = pos + nrm * 10;
+	vec2 leg2 = curve.point(ts + 0.05f, false);
+
+	glColor3f(0.0f, 0.0f, 0.5f);
 	drawCircle(pos, 3, true, 6);
 	glBegin(GL_LINES);
 	glVertex2f(pos.x, pos.y);
-	glVertex2f(pos.x + nrm.x * 20, pos.y + nrm.y * 20);
+	glVertex2f(head.x, head.y);
+	glVertex2f(hand1.x, hand1.y);
+	glVertex2f(hand2.x, hand2.y);
+	glVertex2f(leg1.x, leg1.y);
+	glVertex2f(leg2.x, leg2.y);
 	glEnd();
+	drawCircle(head + nrm * head_r, head_r, false, 6);
 }
 
 void processAnimation()
