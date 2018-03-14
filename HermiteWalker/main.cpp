@@ -161,7 +161,7 @@ void drawAnimation(float t)
 	float head_r = 4.0f;
 	vec2 head = pos + nrm * 20;
 	vec2 hand1 = pos + nrm * 15;
-	vec3 hand2 = pos + translate(vec2(5.0f, 0.0f)) * vec3((nrm * 20).x, (nrm * 20).y, 0);
+	vec3 hand2 = pos + nrm;
 	vec2 leg1 = pos + nrm * 10;
 	vec2 leg2 = curve.point(ts + 0.05f, false);
 
