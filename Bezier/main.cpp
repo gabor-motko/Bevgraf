@@ -3,6 +3,30 @@
 #include <math.h>
 #include <vector>
 
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+  (byte & 0x80 ? '1' : '0'), \
+  (byte & 0x40 ? '1' : '0'), \
+  (byte & 0x20 ? '1' : '0'), \
+  (byte & 0x10 ? '1' : '0'), \
+  (byte & 0x08 ? '1' : '0'), \
+  (byte & 0x04 ? '1' : '0'), \
+  (byte & 0x02 ? '1' : '0'), \
+  (byte & 0x01 ? '1' : '0') 
+
+#pragma region CONSTANTS
+
+#define V_CP (char)0b00000001
+#define V_B_CPOLY (char)0b00000010
+#define V_H_CPOLY (char)0b00000100
+#define V_DC_CPOLY (char)0b00010000
+#define V_DC_SEGMENTS (char)0b00100000
+#define V_DC_SWEEP (char)0b01000000
+
+int visualize = 0;
+
+#pragma endregion
+
 #pragma region GLOBALS
 
 typedef struct TWindow
@@ -16,6 +40,11 @@ typedef struct TWindow
 	}
 } WINDOW;
 WINDOW win = { 800, 600 };
+
+bool * const keyStates = new bool[256]();
+bool * const keyPreviousStates = new bool[256]();
+bool * const mouseStates = new bool[5]();
+bool * const mousePreviousStates = new bool[5]();
 
 //vec2 points[4] = { { -250.0f, 250.0f },{ -100.0f, -200.0f },{ 100.0f, -200.0f },{ 250.0f, 250.0f } };
 std::vector<vec2> points;
@@ -53,21 +82,26 @@ double bernsteinPolynomial(int n, int i, double t)
 }
 
 //t: [0..1]-hez tartozó pont kiszámítása de Casteljau algoritmusával
-vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2>* segmentPoints = NULL)
+vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * segmentPoints = NULL)
 {
-	int n = p.size();
-	std::vector<vec2> out;
-	int r = 0;
-	for (int i = 0; p.size() > 1; ++i)
+	assert(!p.empty());
+
+	int n = p.size() - 1;
+	vec2 * pd = new vec2[n + 1];
+	vec2 * temp = new vec2[n + 1];
+	memcpy(pd, &p[0], n + 1);
+
+
+	for (int i = 0; i <= n; ++i)
 	{
-		out.clear();
 		for (int j = 1; j < n - i; ++j)
 		{
-			out.push_back(lerpv2(p[j], p[j - 1], t));
+			temp[j - 1] = lerpv2(pd[j], pd[j - 1], t);
 		}
-		p.swap(out);
+		memcpy(pd, temp, n + 1);
 	}
-	return p[0];
+
+	return pd[0];
 }
 
 #pragma endregion
@@ -85,14 +119,6 @@ void drawDC()
 
 void drawBernstein()
 {
-	glColor3f(0.0, 0.0, 1.0);
-
-	glBegin(GL_POINTS);
-	for (int i = 0; i < 4; i++)
-		glVertex2f(points[i].x, points[i].y);
-	glEnd();
-
-	glColor3f(0.0, 0.0, 0.0);
 
 	//bezier görbe kontrollpontjait összekötõ vonal
 	glBegin(GL_LINE_STRIP);
@@ -118,13 +144,95 @@ void drawBernstein()
 	glEnd();
 }
 
+#pragma region INPUT
+
+bool keyPress(int key)
+{
+	return keyStates[key] && !keyPreviousStates[key];
+}
+
+void keyProcess(int x)
+{
+	if (keyStates['x'])
+	{
+		exit(0);
+	}
+	if (keyPress('1'))
+	{
+		visualize ^= V_CP;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+	if (keyPress('2'))
+	{
+		visualize ^= V_B_CPOLY;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+	if (keyPress('3'))
+	{
+		visualize ^= V_H_CPOLY;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+	if (keyPress('4'))
+	{
+		visualize ^= V_DC_CPOLY;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+	if (keyPress('5'))
+	{
+		visualize ^= V_DC_SEGMENTS;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+	if (keyPress('6'))
+	{
+		visualize ^= V_DC_SWEEP;
+		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
+	}
+
+	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
+	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
+	glutPostRedisplay();
+	glutTimerFunc(10, keyProcess, 0);
+}
+
+void keyDown(unsigned char key, int x, int y)
+{
+	keyStates[key] = true;
+}
+void keyDown(int key, int x, int y)
+{
+	keyStates[key] = true;
+}
+void keyUp(unsigned char key, int x, int y)
+{
+	keyStates[key] = false;
+}
+void keyUp(int key, int x, int y)
+{
+	keyStates[key] = false;
+}
+
+#pragma endregion
+
+
 #pragma region SYSTEM
 
 void display()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glColor3f(1.0, 0.0, 0.0);
+
+	if (visualize & V_CP)
+	{
+		glColor3f(0.0, 0.0, 1.0);
+		glBegin(GL_POINTS);
+		for (int i = 0; i < 4; i++)
+			glVertex2f(points[i].x, points[i].y);
+		glEnd();
+	}
+
+	glColor3f(0.0, 0.0, 0.0);
+
+
 
 	//drawBernstein();
 	drawDC();
@@ -148,6 +256,14 @@ void init()
 
 int main(int argc, char** argv)
 {
+	points = std::vector<vec2>();
+	points.push_back(vec2(-250.0f, 250.0f));
+	points.push_back(vec2(-100.0f, 200.0f));
+	points.push_back(vec2(100.0f, -200.0f));
+	points.push_back(vec2(250.0f, 250.0f));
+
+	printf("1: kontrollpontok\n2: Dernstein-Bezier kontrollpoligon\n3: Hermite kontrollpoligon\n4: de-Casteljau-Bezier kontrollpoligon\n5: de-Casteljau szakaszok\n6: de-Casteljau szemléltetés\n\n");
+
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(win.width, win.height);
@@ -156,6 +272,12 @@ int main(int argc, char** argv)
 	init();
 
 	glutDisplayFunc(display);
+	glutKeyboardFunc(keyDown);
+	glutKeyboardUpFunc(keyUp);
+	glutSpecialFunc(keyDown);
+	glutSpecialUpFunc(keyUp);
+
+	glutTimerFunc(10, keyProcess, 0);
 
 	glutMainLoop();
 	return 0;
