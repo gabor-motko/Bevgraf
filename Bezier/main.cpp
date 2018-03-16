@@ -66,7 +66,7 @@ double binomialCoefficient(int n, int k)
 	return c;
 }
 
-double bernsteinPolynomial(int n, int i, double t)
+double bernsteinPolynomial(int i, int n, double t)
 {
 	return binomialCoefficient(n, i) * pow(t, i) * pow(1 - t, n - i);
 }
@@ -161,8 +161,8 @@ void drawBernstein()
 		vec2 qt = vec2();
 		for (int i = 0; i <= n; ++i)
 		{
-			qt.x += bernsteinPolynomial(n, i, t) * points[i].x;
-			qt.y += bernsteinPolynomial(n, i, t) * points[i].y;
+			qt.x += bernsteinPolynomial(i, n, t) * points[i].x;
+			qt.y += bernsteinPolynomial(i, n, t) * points[i].y;
 		}
 		glVertex2f(qt.x, qt.y);
 		printf("point: %d %d\n", qt.x, qt.y);
