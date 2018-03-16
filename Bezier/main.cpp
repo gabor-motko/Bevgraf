@@ -4,28 +4,7 @@
 #include <vector>
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-  (byte & 0x80 ? '1' : '0'), \
-  (byte & 0x40 ? '1' : '0'), \
-  (byte & 0x20 ? '1' : '0'), \
-  (byte & 0x10 ? '1' : '0'), \
-  (byte & 0x08 ? '1' : '0'), \
-  (byte & 0x04 ? '1' : '0'), \
-  (byte & 0x02 ? '1' : '0'), \
-  (byte & 0x01 ? '1' : '0') 
-
-#pragma region CONSTANTS
-
-#define V_CP (char)0b00000001
-#define V_B_CPOLY (char)0b00000010
-#define V_H_CPOLY (char)0b00000100
-#define V_DC_CPOLY (char)0b00010000
-#define V_DC_SEGMENTS (char)0b00100000
-#define V_DC_SWEEP (char)0b01000000
-
-int visualize = 0;
-
-#pragma endregion
+#define BYTE_TO_BINARY(byte) (byte & 0x80 ? '1' : '0'), (byte & 0x40 ? '1' : '0'), (byte & 0x20 ? '1' : '0'), (byte & 0x10 ? '1' : '0'), (byte & 0x08 ? '1' : '0'), (byte & 0x04 ? '1' : '0'), (byte & 0x02 ? '1' : '0'), (byte & 0x01 ? '1' : '0') 
 
 #pragma region GLOBALS
 
@@ -46,9 +25,20 @@ bool * const keyPreviousStates = new bool[256]();
 bool * const mouseStates = new bool[5]();
 bool * const mousePreviousStates = new bool[5]();
 
-//vec2 points[4] = { { -250.0f, 250.0f },{ -100.0f, -200.0f },{ 100.0f, -200.0f },{ 250.0f, 250.0f } };
+double delta, currentTime, previousTime;
+
+#define V_CP (char)0b00000001
+#define V_B_CPOLY (char)0b00000010
+#define V_H_CPOLY (char)0b00000100
+#define V_DC_CPOLY (char)0b00010000
+#define V_DC_SEGMENTS (char)0b00100000
+#define V_DC_SWEEP (char)0b01000000
+
+char visualize = V_CP;
+float visualize_t = 0.0f;
+
 std::vector<vec2> points;
-#define DRAW_STEP 0.001f
+#define DRAW_STEP 0.01f
 
 #pragma endregion
 
@@ -82,29 +72,32 @@ double bernsteinPolynomial(int n, int i, double t)
 }
 
 //t: [0..1]-hez tartozó pont kiszámítása de Casteljau algoritmusával
-vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * segmentPoints = NULL)
+vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 {
 	assert(!p.empty());
 
 	int n = p.size() - 1;
-	vec2 * pd = new vec2[n + 1];
-	vec2 * temp = new vec2[n + 1];
-	memcpy(pd, &p[0], n + 1);
-
+	std::vector<vec2> q = std::vector<vec2>(n + 1);
+	q = p;
 
 	for (int i = 0; i <= n; ++i)
 	{
-		for (int j = 1; j < n - i; ++j)
+		for (int j = 0; j < n - i; ++j)
 		{
-			temp[j - 1] = lerpv2(pd[j], pd[j - 1], t);
+			if (out != NULL && i >= 1)
+			{
+				out->push_back(q[j]);
+				out->push_back(q[j + 1]);
+			}
+			q[j] = (1 - t) * q[j] + t * q[j + 1];
 		}
-		memcpy(pd, temp, n + 1);
 	}
-
-	return pd[0];
+	return q[0];
 }
 
 #pragma endregion
+
+#pragma region GRAPHICS
 
 void drawDC()
 {
@@ -115,6 +108,39 @@ void drawDC()
 		glVertex2f(p.x, p.y);
 	}
 	glEnd();
+}
+
+void visualizeDC()
+{
+	if ((visualize & V_DC_CPOLY) || (visualize & V_DC_SEGMENTS) || (visualize & V_DC_SWEEP))
+	{
+		std::vector<vec2> s = std::vector<vec2>();
+		vec2 p = dcPoint(points, visualize_t, &s);
+		if (visualize & V_DC_CPOLY)
+		{
+			glBegin(GL_LINE_STRIP);
+			for (int i = 0; i < points.size(); ++i)
+			{
+				glVertex2f(points[i].x, points[i].y);
+			}
+			glEnd();
+		}
+		if (visualize & V_DC_SEGMENTS)
+		{
+			glBegin(GL_LINES);
+			for (int i = 0; i < s.size(); ++i)
+			{
+				glVertex2f(s[i].x, s[i].y);
+			}
+			glEnd();
+		}
+		if (visualize & V_DC_SWEEP)
+		{
+			glBegin(GL_POINTS);
+			glVertex2f(p.x, p.y);
+			glEnd();
+		}
+	}
 }
 
 void drawBernstein()
@@ -143,6 +169,8 @@ void drawBernstein()
 	}
 	glEnd();
 }
+
+#pragma endregion
 
 #pragma region INPUT
 
@@ -187,6 +215,24 @@ void keyProcess(int x)
 		visualize ^= V_DC_SWEEP;
 		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
+	if (keyStates[GLUT_KEY_LEFT])
+	{
+		if (visualize_t > 0.0f)
+		{
+			visualize_t -= 0.25f * delta;
+			if (visualize_t < 0.0f)
+				visualize_t = 0.0f;
+		}
+	}
+	if (keyStates[GLUT_KEY_RIGHT])
+	{
+		if (visualize_t < 1.0f)
+		{
+			visualize_t += 0.25f * delta;
+			if (visualize_t > 1.0f)
+				visualize_t = 1.0f;
+		}
+	}
 
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
 	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
@@ -213,13 +259,19 @@ void keyUp(int key, int x, int y)
 
 #pragma endregion
 
-
 #pragma region SYSTEM
+
+void getDelta()
+{
+	currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	delta = currentTime - previousTime;
+	previousTime = currentTime;
+}
 
 void display()
 {
+	getDelta();
 	glClear(GL_COLOR_BUFFER_BIT);
-
 
 	if (visualize & V_CP)
 	{
@@ -231,17 +283,17 @@ void display()
 	}
 
 	glColor3f(0.0, 0.0, 0.0);
-
-
-
 	//drawBernstein();
 	drawDC();
+
+	visualizeDC();
 
 	glutSwapBuffers();
 }
 
 void init()
 {
+	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	glClearColor(1.0, 1.0, 1.0, 0.0);
 	glMatrixMode(GL_PROJECTION);
 	gluOrtho2D(-win.width / 2, win.width / 2, -win.height / 2, win.height / 2);
@@ -253,11 +305,10 @@ void init()
 
 #pragma endregion
 
-
 int main(int argc, char** argv)
 {
 	points = std::vector<vec2>();
-	points.push_back(vec2(-250.0f, 250.0f));
+	points.push_back(vec2(-250.0f, -250.0f));
 	points.push_back(vec2(-100.0f, 200.0f));
 	points.push_back(vec2(100.0f, -200.0f));
 	points.push_back(vec2(250.0f, 250.0f));
