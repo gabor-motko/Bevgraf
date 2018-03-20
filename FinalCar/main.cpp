@@ -121,7 +121,7 @@ vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 
 vec2 hermitePoint()
 {
-
+	return vec2();
 }
 
 #pragma endregion
@@ -170,7 +170,7 @@ void drawHermite()
 	mat3 hermiteM = mat3(vec3(pow(hermiteT.x, 2), hermiteT.x, 1), vec3(pow(hermiteT.y, 2), hermiteT.y, 1), vec3(pow(hermiteT.z, 2), hermiteT.z, 1), true);
 	for (float t = hermiteT.x; t <= hermiteT.z; t += (hermiteT.z - hermiteT.x) / 64)
 	{
-		vec2 p = hermitePoint(hermitePoints, )
+		//vec2 p = hermitePoint(hermitePoints, )
 	}
 }
 
