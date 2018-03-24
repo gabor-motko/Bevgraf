@@ -3,10 +3,8 @@
 #include <bevgrafmath2017.h>
 #include <math.h>
 #include <time.h>
-#include <iostream>
 #include <string>
 #include <vector>
-#include <fstream>
 #define BYTE_TO_BINARY(byte) (byte & 0x80 ? '1' : '0'), (byte & 0x40 ? '1' : '0'), (byte & 0x20 ? '1' : '0'), (byte & 0x10 ? '1' : '0'), (byte & 0x08 ? '1' : '0'), (byte & 0x04 ? '1' : '0'), (byte & 0x02 ? '1' : '0'), (byte & 0x01 ? '1' : '0') 
 
 #pragma region MAT23
@@ -64,8 +62,9 @@ float visualize_t = 0.0f;
 std::vector<vec2> bernsteinPoints;	//Bernstein-Bezier görbe pontjai
 std::vector<vec2> dcPoints;			//de-Casteljau-Bezier görbe pontjai
 std::vector<vec2> hermitePoints;	//Hermite görbe pontjai
+std::vector<vec2> dcVisPoints;
 
-vec3 hermiteT = { 0.0f, 0.5f, 1.0f };
+vec4 hermiteT = { -1.0f, -0.5f, 0.5f, 1.0f };
 
 #pragma endregion
 
@@ -100,6 +99,9 @@ vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 {
 	assert(!p.empty());
 
+	if (out != NULL)
+		out->clear();
+
 	int n = p.size() - 1;
 	std::vector<vec2> q = std::vector<vec2>(n + 1);
 	q = p;
@@ -119,9 +121,11 @@ vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 	return q[0];
 }
 
-vec2 hermitePoint()
+vec4 getHermiteT(float t, bool tangent = false)
 {
-
+	if (tangent)
+		return vec4(3 * pow(t, 2), 2 * t, 1, 0);
+	return vec4(pow(t, 3), pow(t, 2), t, 1);
 }
 
 #pragma endregion
@@ -160,23 +164,49 @@ void visualizeBernstein()
 {
 	glColor3f(0.0f, 0.0f, 0.0f);
 	glBegin(GL_LINE_STRIP);
-	for(int i = 0; i < bernsteinPoints.size(); ++i)
+	for (int i = 0; i < bernsteinPoints.size(); ++i)
 		glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
 	glEnd();
 }
 
 void drawHermite()
 {
-	mat3 hermiteM = mat3(vec3(pow(hermiteT.x, 2), hermiteT.x, 1), vec3(pow(hermiteT.y, 2), hermiteT.y, 1), vec3(pow(hermiteT.z, 2), hermiteT.z, 1), true);
-	for (float t = hermiteT.x; t <= hermiteT.z; t += (hermiteT.z - hermiteT.x) / 64)
-	{
-		vec2 p = hermitePoint(hermitePoints, )
-	}
 }
 
-void drawDeCasteljau();
+void drawDeCasteljau()
+{
+	glBegin(GL_LINE_STRIP);
+	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64)
+	{
+		vec2 p = dcPoint(dcPoints, t);
+		glVertex2f(p.x, p.y);
+	}
+	glEnd();
+}
 
-void visualizeDeCasteljau();
+void visualizeDeCasteljau()
+{
+	if (visualize & V_DC_CPOLY)
+	{
+		glBegin(GL_LINE_STRIP);
+		for (int i = 0; i < dcPoints.size(); ++i)
+			glVertex2f(dcPoints[i].x, dcPoints[i].y);
+		glEnd();
+	}
+	if (visualize & V_DC_SWEEP)
+	{
+		vec2 p = dcPoint(dcPoints, visualize_t, &dcVisPoints);
+		glBegin(GL_POINTS);
+		glVertex2f(p.x, p.y);
+		glEnd();
+		glBegin(GL_LINES);
+		for (int i = 0; i < dcVisPoints.size(); ++i)
+		{
+			glVertex2f(dcVisPoints[i].x, dcVisPoints[i].y);
+		}
+		glEnd();
+	}
+}
 
 void drawLines()
 {
@@ -344,11 +374,15 @@ void drawScene()
 	drawBackground();
 	drawLines();
 	drawWheels();
+	drawHermite();
+	drawDeCasteljau();
 
 	if (visualize & V_B_CPOLY)
 		visualizeBernstein();
-	if(visualize & V_CP)
+	if (visualize & V_CP)
 		drawCPs();
+	if (visualize & V_DC_SWEEP || visualize & V_DC_CPOLY)
+		visualizeDeCasteljau();
 
 	glutSwapBuffers();
 }
@@ -377,7 +411,7 @@ void initVectors()
 	bernsteinPoints.push_back(vec2(270.0f, 375.0f));
 	bernsteinPoints.push_back(vec2(376.0f, 465.0f));
 	bernsteinPoints.push_back(vec2(532.0f, 438.0f));
-	hermitePoints.push_back(vec2(706.0f, 291.0f));
+	hermitePoints.push_back(vec2(600.0f, 350.0f));
 	hermitePoints.push_back(vec2(752.0f, 252.0f));
 	hermitePoints.push_back(vec2(750.0f, 205.0f));
 	dcPoints.push_back(vec2(360.0f, 329.0f));
