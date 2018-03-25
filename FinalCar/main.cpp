@@ -54,7 +54,7 @@ bool * const mouseStates = new bool[5]();
 bool * const mousePreviousStates = new bool[5]();
 
 vec2 * selectedCP = NULL;
-#define CP_R 7.0f
+#define CP_R 4.0f
 
 double delta, currentTime, previousTime;
 
@@ -87,6 +87,7 @@ vec2 lerpv2(vec2 a, vec2 b, float t)
 	return (1 - t) * a + t * b;
 }
 
+//Binomiális együttható
 double binomialCoefficient(int n, int k)
 {
 	if (k > n - k)
@@ -100,11 +101,13 @@ double binomialCoefficient(int n, int k)
 	return c;
 }
 
+//Bernstein polinóm
 float bernsteinPolynomial(int i, int n, float t)
 {
 	return binomialCoefficient(n, i) * pow(t, i) * pow(1.0f - t, n - i);
 }
 
+//Pont kiszámítása de-Casteljau algoritmusával
 vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 {
 	assert(!p.empty());
@@ -131,6 +134,7 @@ vec2 dcPoint(std::vector<vec2> p, float t, std::vector<vec2> * out = NULL)
 	return q[0];
 }
 
+//Hermite-görbe T vektora
 vec4 getHermiteT(float t, bool tangent = false)
 {
 	if (tangent)
@@ -147,6 +151,7 @@ void colorV3(vec3 rgb)
 	glColor3f(rgb.x, rgb.y, rgb.z);
 }
 
+//C-string kiírása glut ablakba
 void drawText(float x, float y, const char * s)
 {
 	glRasterPos2f(x, y);
@@ -187,7 +192,7 @@ void drawTextOverlay()
 	top -= 14.0f;
 	str = (visualize & V_DC_SWEEP) ? "5: [x] " : "5: [ ] ";
 	str += "de-Casteljau felezok";
-	str += " (t = " + std::to_string(visualize_t).substr(0, 5) + ")";
+	str += " (t = " + std::to_string(visualize_t).substr(0, 4) + ")";
 	drawText(left, top, str.c_str());
 
 	top -= 28.0f;
@@ -480,7 +485,7 @@ void mouseChange(int button, int state, int x, int y)
 	{
 		for (int i = 0; i < bernsteinPoints.size(); ++i)
 		{
-			if (dist(vec2(x, win.height - y), bernsteinPoints[i]) <= CP_R)
+			if (dist2(vec2(x, win.height - y), bernsteinPoints[i]) <= CP_R * CP_R)
 			{
 				selectedCP = &bernsteinPoints[i];
 				break;
@@ -490,7 +495,7 @@ void mouseChange(int button, int state, int x, int y)
 		{
 			for (int i = 0; i < dcPoints.size(); ++i)
 			{
-				if (dist(vec2(x, win.height - y), dcPoints[i]) <= CP_R)
+				if (dist2(vec2(x, win.height - y), dcPoints[i]) <= CP_R * CP_R)
 				{
 					selectedCP = &dcPoints[i];
 					break;
@@ -501,7 +506,7 @@ void mouseChange(int button, int state, int x, int y)
 		{
 			for (int i = 0; i < hermitePoints.size(); ++i)
 			{
-				if (dist(vec2(x, win.height - y), hermitePoints[i]) <= CP_R)
+				if (dist2(vec2(x, win.height - y), hermitePoints[i]) <= CP_R * CP_R)
 				{
 					selectedCP = &hermitePoints[i];
 					break;
@@ -581,7 +586,7 @@ void init()
 	gluOrtho2D(0, win.width, 0, win.height);
 	glShadeModel(GL_FLAT);
 	glEnable(GL_POINT_SMOOTH);
-	glPointSize(CP_R);
+	glPointSize(CP_R * 2);
 	hermiteM = inverse(mat4(getHermiteT(hermiteT[0]), getHermiteT(hermiteT[1]), getHermiteT(hermiteT[2], true), getHermiteT(hermiteT[3], false), true));
 }
 
