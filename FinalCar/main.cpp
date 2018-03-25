@@ -35,6 +35,18 @@ typedef struct TEnvironment
 } ENVIRONMENT;
 ENVIRONMENT env = { 200.0f, {0.0f, 0.6f, 0.0f}, {0.0f, 0.5f, 1.0f} };
 
+struct 
+{
+	vec3 black = vec3(0.0f, 0.0f, 0.0f);
+	vec3 darkblue = vec3(0.0f, 0.0f, 0.5f);
+	vec3 darkred = vec3(0.5f, 0.0f, 0.0f);
+	vec3 red = vec3(1.0f, 0.0f, 0.0f);
+	vec3 orange = vec3(1.0f, 0.5f, 0.0f);
+	vec3 yellow = vec3(1.0f, 1.0f, 0.0f);
+	vec3 blue = vec3(0.0f, 0.0f, 1.0f);
+	vec3 gray = vec3(0.35f, 0.35f, 0.35f);
+} colors;
+
 bool * const keyStates = new bool[256]();
 bool * const keyPreviousStates = new bool[256]();
 bool * const mouseStates = new bool[5]();
@@ -57,7 +69,7 @@ float visualize_t = 0.0f;
 std::vector<vec2> bernsteinPoints;	//Bernstein-Bezier görbe pontjai
 std::vector<vec2> dcPoints;			//de-Casteljau-Bezier görbe pontjai
 std::vector<vec2> hermitePoints;	//Hermite görbe pontjai
-std::vector<vec2> dcVisPoints;
+std::vector<vec2> dcVisPoints;		//de-Casteljau algoritmus osztópontjai
 
 vec4 hermiteT = { -1.0f, -0.5f, 0.5f, 1.0f };
 
@@ -127,6 +139,11 @@ vec4 getHermiteT(float t, bool tangent = false)
 
 #pragma region GRAPHICS
 
+void colorV3(vec3 rgb)
+{
+	glColor3f(rgb.x, rgb.y, rgb.z);
+}
+
 void drawTextLine(float x, float y, const char * s)
 {
 	glRasterPos2f(x, y);
@@ -143,6 +160,7 @@ void drawTextLine(float x, float y, char * s)
 
 void drawText()
 {
+	colorV3(colors.black);
 	float left = 30.0f;
 	float top = win.height - 20.0f;
 	const char * title = "Vizualizacio:";
@@ -177,38 +195,17 @@ void drawText()
 	str += "de-Casteljau felezok";
 	str += " (t = " + std::to_string(visualize_t).substr(0, 5) + ")";
 	drawTextLine(left, top, str.c_str());
-
-	//if (visualize & V_B_CPOLY)
-	//{
-	//	top -= 14.0f;
-	//	drawTextLine(left, top, strings[1]);
-	//}
-	//if (visualize & V_H_CPOLY)
-	//{
-	//	top -= 14.0f;
-	//	drawTextLine(left, top, strings[2]);
-	//}
-	//if (visualize & V_DC_CPOLY)
-	//{
-	//	top -= 14.0f;
-	//	drawTextLine(left, top, strings[3]);
-	//}
-	//if (visualize & V_DC_SWEEP)
-	//{
-	//	top -= 14.0f;
-	//	drawTextLine(left, top, strings[4]);
-	//}
 }
 
 void drawBackground()
 {
-	glColor3f(env.groundColor.x, env.groundColor.y, env.groundColor.z);
+	colorV3(env.groundColor);
 	glRectf(0.0f, 0.0f, win.width, env.ground);
 }
 
 void drawCPs()
 {
-	glColor3f(0.0f, 0.0f, 1.0f);
+	colorV3(colors.darkblue);
 	glBegin(GL_POINTS);
 	for (int i = 0; i < bernsteinPoints.size(); ++i)
 	{
@@ -232,6 +229,7 @@ void drawConnectedBernstein()
 	vec2 qt;
 	glBegin(GL_LINE_STRIP);
 
+	colorV3(colors.darkred);
 	points = &bernsteinPoints[0];
 	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
 	{
@@ -244,6 +242,7 @@ void drawConnectedBernstein()
 		}
 		glVertex2f(qt.x, qt.y);
 	}
+	colorV3(colors.red);
 	points = &bernsteinPoints[3];
 	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
 	{
@@ -256,6 +255,7 @@ void drawConnectedBernstein()
 		}
 		glVertex2f(qt.x, qt.y);
 	}
+	colorV3(colors.orange);
 	points = &bernsteinPoints[6];
 	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
 	{
@@ -274,7 +274,7 @@ void drawConnectedBernstein()
 
 void visualizeBernstein()
 {
-	glColor3f(0.0f, 0.0f, 0.0f);
+	colorV3(colors.black);
 	glBegin(GL_LINE_STRIP);
 	for (int i = 0; i < bernsteinPoints.size(); ++i)
 		glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
@@ -283,10 +283,20 @@ void visualizeBernstein()
 
 void drawHermite()
 {
+	colorV3(colors.yellow);
+}
+
+void visualizeHermite()
+{
+	glBegin(GL_LINE_STRIP);
+	for (int i = 0; i < hermitePoints.size(); ++i)
+		glVertex2f(hermitePoints[i].x, hermitePoints[i].y);
+	glEnd();
 }
 
 void drawDeCasteljau()
 {
+	colorV3(colors.blue);
 	glBegin(GL_LINE_STRIP);
 	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64)
 	{
@@ -298,7 +308,8 @@ void drawDeCasteljau()
 
 void visualizeDeCasteljau()
 {
-	if (visualize & V_DC_CPOLY)
+	colorV3(colors.blue);
+	if (visualize & V_DC_CPOLY || visualize & V_DC_SWEEP)
 	{
 		glBegin(GL_LINE_STRIP);
 		for (int i = 0; i < dcPoints.size(); ++i)
@@ -308,34 +319,37 @@ void visualizeDeCasteljau()
 	if (visualize & V_DC_SWEEP)
 	{
 		vec2 p = dcPoint(dcPoints, visualize_t, &dcVisPoints);
-		glBegin(GL_POINTS);
-		glVertex2f(p.x, p.y);
-		glEnd();
+		colorV3(colors.blue);
 		glBegin(GL_LINES);
 		for (int i = 0; i < dcVisPoints.size(); ++i)
 		{
 			glVertex2f(dcVisPoints[i].x, dcVisPoints[i].y);
 		}
 		glEnd();
+		colorV3(colors.red);
+		glBegin(GL_POINTS);
+		glVertex2f(p.x, p.y);
+		p = lerpv2(dcPoints[0], dcPoints[4], visualize_t);
+		glVertex2f(p.x, p.y);
+		glEnd();
 	}
 }
 
 void drawLines()
 {
-	glColor3f(0.0f, 0.0f, 1.0f);
+	colorV3(colors.blue);
 	glBegin(GL_LINES);
 	glVertex2f(bernsteinPoints[9].x, bernsteinPoints[9].y);
 	glVertex2f(hermitePoints[0].x, hermitePoints[0].y);
 	glEnd();
-	glColor3f(0.0f, 0.0f, 0.0f);
-	glBegin(GL_LINES);
-	glVertex2f(hermitePoints[2].x, hermitePoints[2].y);
-	glVertex2f(bernsteinPoints[0].x, bernsteinPoints[0].y);
-	glEnd();
-	glColor3f(0.0f, 0.0f, 1.0f);
 	glBegin(GL_LINES);
 	glVertex2f(dcPoints[0].x, dcPoints[0].y);
 	glVertex2f(dcPoints[4].x, dcPoints[4].y);
+	glEnd();
+	colorV3(colors.black);
+	glBegin(GL_LINES);
+	glVertex2f(hermitePoints[2].x, hermitePoints[2].y);
+	glVertex2f(bernsteinPoints[0].x, bernsteinPoints[0].y);
 	glEnd();
 }
 
@@ -345,22 +359,23 @@ void drawWheels()
 	vec2 rear = lerpv2(bernsteinPoints[0], hermitePoints[2], 0.75f);
 	const float r1 = 50.0f;
 	const float r2 = 30.0f;
-	glColor3f(0.5f, 0.5f, 0.5f);
+	colorV3(colors.gray);
 	glBegin(GL_POLYGON);
-	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 32)
+	for (float t = 0.0f; t <= 2 * pi(); t += pi() / 32.0f)
 		glVertex2f(front.x + r1 * cos(t), front.y + r1 * sin(t));
 	glEnd();
 	glBegin(GL_POLYGON);
-	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 32)
+	for (float t = 0.0f; t <= 2 * pi(); t += pi() / 32.0f)
 		glVertex2f(rear.x + r1 * cos(t), rear.y + r1 * sin(t));
 	glEnd();
-	glColor3f(0.0f, 0.0f, 0.0f);
+
+	colorV3(colors.black);
 	glBegin(GL_POLYGON);
-	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 10)
+	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 10.0f)
 		glVertex2f(front.x + r2 * cos(t), front.y + r2 * sin(t));
 	glEnd();
 	glBegin(GL_POLYGON);
-	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 10)
+	for (float t = 0.0f; t <= 2 * pi(); t += 2 * pi() / 10.0f)
 		glVertex2f(rear.x + r2 * cos(t), rear.y + r2 * sin(t));
 	glEnd();
 }
@@ -387,27 +402,22 @@ void keyProcess(int x)
 	if (keyPress('1'))
 	{
 		visualize ^= V_CP;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
 	if (keyPress('2'))
 	{
 		visualize ^= V_B_CPOLY;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
 	if (keyPress('3'))
 	{
 		visualize ^= V_H_CPOLY;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
 	if (keyPress('4'))
 	{
 		visualize ^= V_DC_CPOLY;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
 	if (keyPress('5'))
 	{
 		visualize ^= V_DC_SWEEP;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
 	if (keyStates[GLUT_KEY_LEFT])
 	{
@@ -428,11 +438,9 @@ void keyProcess(int x)
 		}
 	}
 
-	bernsteinPoints[4] = bernsteinPoints[3] + (bernsteinPoints[3] - bernsteinPoints[2]);
-	bernsteinPoints[7] = bernsteinPoints[6] + (bernsteinPoints[6] - bernsteinPoints[5]);
-
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
 	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
+
 	glutPostRedisplay();
 	glutTimerFunc(10, keyProcess, 0);
 }
@@ -499,11 +507,8 @@ void mouseMove(int x, int y)
 {
 	if (selectedCP != NULL)
 	{
-		printf("Selected: %d %d\n", selectedCP != NULL ? (*selectedCP).x : 0, selectedCP != NULL ? (*selectedCP).y : 0);
 		*selectedCP = vec2(x, win.height - y);
 	}
-	else
-		;//printf("Selected CP is NULL\n");
 }
 
 #pragma endregion
@@ -512,7 +517,7 @@ void mouseMove(int x, int y)
 
 void getDelta()
 {
-	currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
 	delta = currentTime - previousTime;
 	previousTime = currentTime;
 }
@@ -522,27 +527,36 @@ void drawScene()
 	getDelta();
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	//TODO: drawing
+	//Bernstein-Bezier C1 folytonosság
+	bernsteinPoints[4] = bernsteinPoints[3] + (bernsteinPoints[3] - bernsteinPoints[2]);
+	bernsteinPoints[7] = bernsteinPoints[6] + (bernsteinPoints[6] - bernsteinPoints[5]);
+
+	//Kirajzolás
 	drawBackground();
+	glColor3f(0.0f, 0.0f, 0.0f);
+
 	drawLines();
 	drawWheels();
 	drawHermite();
 	drawDeCasteljau();
 	drawConnectedBernstein();
 
+	//Vizualizáció
 	if (visualize & V_B_CPOLY)
 		visualizeBernstein();
-	if (visualize & V_CP)
-		drawCPs();
 	if (visualize & V_DC_SWEEP || visualize & V_DC_CPOLY)
 		visualizeDeCasteljau();
+	if (visualize & V_H_CPOLY)
+		visualizeHermite();
+	if (visualize & V_CP)
+		drawCPs();
 	drawText();
 	glutSwapBuffers();
 }
 
 void init()
 {
-	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
 	glClearColor(env.skyColor.x, env.skyColor.y, env.skyColor.z, 0.0f);
 	glMatrixMode(GL_PROJECTION);
 	gluOrtho2D(0, win.width, 0, win.height);
