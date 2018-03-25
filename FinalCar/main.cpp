@@ -7,13 +7,6 @@
 #include <vector>
 #define BYTE_TO_BINARY(byte) (byte & 0x80 ? '1' : '0'), (byte & 0x40 ? '1' : '0'), (byte & 0x20 ? '1' : '0'), (byte & 0x10 ? '1' : '0'), (byte & 0x08 ? '1' : '0'), (byte & 0x04 ? '1' : '0'), (byte & 0x02 ? '1' : '0'), (byte & 0x01 ? '1' : '0') 
 
-#pragma region MAT23
-
-
-
-#pragma endregion
-
-
 #pragma region GLOBALS
 
 typedef struct TWindow
@@ -47,13 +40,15 @@ bool * const keyPreviousStates = new bool[256]();
 bool * const mouseStates = new bool[5]();
 bool * const mousePreviousStates = new bool[5]();
 
+vec2 * selectedCP = NULL;
+#define CP_R 7.0f
+
 double delta, currentTime, previousTime;
 
 #define V_CP (char)0b00000001
 #define V_B_CPOLY (char)0b00000010
 #define V_H_CPOLY (char)0b00000100
 #define V_DC_CPOLY (char)0b00010000
-#define V_DC_SEGMENTS (char)0b00100000
 #define V_DC_SWEEP (char)0b01000000
 
 char visualize = V_CP;
@@ -132,6 +127,78 @@ vec4 getHermiteT(float t, bool tangent = false)
 
 #pragma region GRAPHICS
 
+void drawTextLine(float x, float y, const char * s)
+{
+	glRasterPos2f(x, y);
+	for (int i = 0; s[i] != '\0'; ++i)
+		glutBitmapCharacter(GLUT_BITMAP_8_BY_13, s[i]);
+}
+
+void drawTextLine(float x, float y, char * s)
+{
+	glRasterPos2f(x, y);
+	for (int i = 0; s[i] != '\0'; ++i)
+		glutBitmapCharacter(GLUT_BITMAP_8_BY_13, s[i]);
+}
+
+void drawText()
+{
+	float left = 30.0f;
+	float top = win.height - 20.0f;
+	const char * title = "Vizualizacio:";
+	const char * strings[] = { "Kontrollpontok", "Bernstein kontrollpoligon", "Hermite kontrollpoligon", "de-Casteljau kontrollpoligon", "de-Casteljau felezok" };
+	std::string str;
+	glRasterPos2f(left, top);
+	drawTextLine(left, top, title);
+
+	left += 10.0f;
+	top -= 14.0f;
+	str = (visualize & V_CP) ? "1: [x] " : "1: [ ] ";
+	str += "Kontrollpontok";
+	drawTextLine(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_B_CPOLY) ? "2: [x] " : "2: [ ] ";
+	str += "Bernstein kontrollpoligon";
+	drawTextLine(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_H_CPOLY) ? "3: [x] " : "3: [ ] ";
+	str += "Hermite kontrollpoligon";
+	drawTextLine(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_DC_CPOLY) ? "4: [x] " : "4: [ ] ";
+	str += "de-Casteljau kontrollpoligon";
+	drawTextLine(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_DC_SWEEP) ? "5: [x] " : "5: [ ] ";
+	str += "de-Casteljau felezok";
+	str += " (t = " + std::to_string(visualize_t).substr(0, 5) + ")";
+	drawTextLine(left, top, str.c_str());
+
+	//if (visualize & V_B_CPOLY)
+	//{
+	//	top -= 14.0f;
+	//	drawTextLine(left, top, strings[1]);
+	//}
+	//if (visualize & V_H_CPOLY)
+	//{
+	//	top -= 14.0f;
+	//	drawTextLine(left, top, strings[2]);
+	//}
+	//if (visualize & V_DC_CPOLY)
+	//{
+	//	top -= 14.0f;
+	//	drawTextLine(left, top, strings[3]);
+	//}
+	//if (visualize & V_DC_SWEEP)
+	//{
+	//	top -= 14.0f;
+	//	drawTextLine(left, top, strings[4]);
+	//}
+}
 
 void drawBackground()
 {
@@ -158,7 +225,52 @@ void drawCPs()
 	glEnd();
 }
 
-void drawConnectedBernstein();
+void drawConnectedBernstein()
+{
+	int n = 3;
+	vec2 * points;
+	vec2 qt;
+	glBegin(GL_LINE_STRIP);
+
+	points = &bernsteinPoints[0];
+	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
+	{
+		qt = vec2();
+		for (int i = 0; i <= n; ++i)
+		{
+			float b = bernsteinPolynomial(i, n, t);
+			qt.x += b * points[i].x;
+			qt.y += b * points[i].y;
+		}
+		glVertex2f(qt.x, qt.y);
+	}
+	points = &bernsteinPoints[3];
+	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
+	{
+		qt = vec2();
+		for (int i = 0; i <= n; ++i)
+		{
+			float b = bernsteinPolynomial(i, n, t);
+			qt.x += b * points[i].x;
+			qt.y += b * points[i].y;
+		}
+		glVertex2f(qt.x, qt.y);
+	}
+	points = &bernsteinPoints[6];
+	for (float t = 0.0f; t <= 1.0f; t += 1.0f / 64.0f)
+	{
+		qt = vec2();
+		for (int i = 0; i <= n; ++i)
+		{
+			float b = bernsteinPolynomial(i, n, t);
+			qt.x += b * points[i].x;
+			qt.y += b * points[i].y;
+		}
+		glVertex2f(qt.x, qt.y);
+	}
+
+	glEnd();
+}
 
 void visualizeBernstein()
 {
@@ -294,11 +406,6 @@ void keyProcess(int x)
 	}
 	if (keyPress('5'))
 	{
-		visualize ^= V_DC_SEGMENTS;
-		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
-	}
-	if (keyPress('6'))
-	{
 		visualize ^= V_DC_SWEEP;
 		printf("Visualize: %c%c%c%c%c%c%c%c\n", BYTE_TO_BINARY(visualize));
 	}
@@ -320,6 +427,9 @@ void keyProcess(int x)
 				visualize_t = 1.0f;
 		}
 	}
+
+	bernsteinPoints[4] = bernsteinPoints[3] + (bernsteinPoints[3] - bernsteinPoints[2]);
+	bernsteinPoints[7] = bernsteinPoints[6] + (bernsteinPoints[6] - bernsteinPoints[5]);
 
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
 	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
@@ -346,12 +456,54 @@ void keyUp(int key, int x, int y)
 void mouseChange(int button, int state, int x, int y)
 {
 	mouseStates[button] = state;
-	if (mousePress(GLUT_LEFT_BUTTON))
+	if (!mouseStates[GLUT_LEFT_BUTTON])
 	{
-		/*dcPoints.push_back(vec2(x, win.height - y));
-		printf("point: %.0f %.0f\n", dcPoints[dcPoints.size()-1].x, dcPoints[dcPoints.size() - 1].y);
-		out << "Points.push_back(vec2(" << dcPoints[dcPoints.size() - 1].x << ".0f, " << dcPoints[dcPoints.size() - 1].y << ".0f));\n";*/
+		for (int i = 0; i < bernsteinPoints.size(); ++i)
+		{
+			if (dist(vec2(x, win.height - y), bernsteinPoints[i]) <= CP_R)
+			{
+				selectedCP = &bernsteinPoints[i];
+				break;
+			}
+		}
+		if (selectedCP == NULL)
+		{
+			for (int i = 0; i < dcPoints.size(); ++i)
+			{
+				if (dist(vec2(x, win.height - y), dcPoints[i]) <= CP_R)
+				{
+					selectedCP = &dcPoints[i];
+					break;
+				}
+			}
+		}
+		if (selectedCP == NULL)
+		{
+			for (int i = 0; i < hermitePoints.size(); ++i)
+			{
+				if (dist(vec2(x, win.height - y), hermitePoints[i]) <= CP_R)
+				{
+					selectedCP = &hermitePoints[i];
+					break;
+				}
+			}
+		}
 	}
+	if (mouseStates[GLUT_LEFT_BUTTON])
+	{
+		selectedCP = NULL;
+	}
+}
+
+void mouseMove(int x, int y)
+{
+	if (selectedCP != NULL)
+	{
+		printf("Selected: %d %d\n", selectedCP != NULL ? (*selectedCP).x : 0, selectedCP != NULL ? (*selectedCP).y : 0);
+		*selectedCP = vec2(x, win.height - y);
+	}
+	else
+		;//printf("Selected CP is NULL\n");
 }
 
 #pragma endregion
@@ -376,6 +528,7 @@ void drawScene()
 	drawWheels();
 	drawHermite();
 	drawDeCasteljau();
+	drawConnectedBernstein();
 
 	if (visualize & V_B_CPOLY)
 		visualizeBernstein();
@@ -383,7 +536,7 @@ void drawScene()
 		drawCPs();
 	if (visualize & V_DC_SWEEP || visualize & V_DC_CPOLY)
 		visualizeDeCasteljau();
-
+	drawText();
 	glutSwapBuffers();
 }
 
@@ -395,7 +548,7 @@ void init()
 	gluOrtho2D(0, win.width, 0, win.height);
 	glShadeModel(GL_FLAT);
 	glEnable(GL_POINT_SMOOTH);
-	glPointSize(7.0f);
+	glPointSize(CP_R);
 	glLineWidth(2.0f);
 }
 
@@ -438,6 +591,7 @@ int main(int argc, char * argv[])
 	glutSpecialFunc(keyDown);
 	glutSpecialUpFunc(keyUp);
 	glutMouseFunc(mouseChange);
+	glutMotionFunc(mouseMove);
 
 	glutTimerFunc(10, keyProcess, 0);
 
