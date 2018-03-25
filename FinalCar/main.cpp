@@ -5,6 +5,7 @@
 #include <time.h>
 #include <string>
 #include <vector>
+#include <fstream>
 #define BYTE_TO_BINARY(byte) (byte & 0x80 ? '1' : '0'), (byte & 0x40 ? '1' : '0'), (byte & 0x20 ? '1' : '0'), (byte & 0x10 ? '1' : '0'), (byte & 0x08 ? '1' : '0'), (byte & 0x04 ? '1' : '0'), (byte & 0x02 ? '1' : '0'), (byte & 0x01 ? '1' : '0') 
 
 #pragma region GLOBALS
@@ -38,9 +39,9 @@ ENVIRONMENT env = { 200.0f, {0.0f, 0.6f, 0.0f}, {0.0f, 0.5f, 1.0f} };
 struct 
 {
 	vec3 black = vec3(0.0f, 0.0f, 0.0f);
-	vec3 darkblue = vec3(0.0f, 0.0f, 0.5f);
-	vec3 darkred = vec3(0.5f, 0.0f, 0.0f);
-	vec3 red = vec3(1.0f, 0.0f, 0.0f);
+	vec3 darkblue = vec3(0.0f, 0.0f, 0.7f);
+	vec3 darkred = vec3(0.7f, 0.0f, 0.0f);
+	vec3 red = vec3(1.0f, 0.2f, 0.0f);
 	vec3 orange = vec3(1.0f, 0.5f, 0.0f);
 	vec3 yellow = vec3(1.0f, 1.0f, 0.0f);
 	vec3 blue = vec3(0.0f, 0.0f, 1.0f);
@@ -135,12 +136,6 @@ vec4 getHermiteT(float t, bool tangent = false)
 	if (tangent)
 		return vec4(3 * pow(t, 2), 2 * t, 1, 0);
 	return vec4(pow(t, 3), pow(t, 2), t, 1);
-}
-
-void setHermiteM()
-{
-	mat4 mat = mat4(getHermiteT(hermiteT[0]), getHermiteT(hermiteT[1]), getHermiteT(hermiteT[2], true), getHermiteT(hermiteT[3], false), true);
-	hermiteM = inverse(mat);
 }
 
 #pragma endregion
@@ -440,7 +435,7 @@ void keyProcess(int x)
 	{
 		if (visualize_t > 0.0f)
 		{
-			visualize_t -= 0.25f * delta;
+			visualize_t -= 0.5f * delta;
 			if (visualize_t < 0.0f)
 				visualize_t = 0.0f;
 		}
@@ -449,7 +444,7 @@ void keyProcess(int x)
 	{
 		if (visualize_t < 1.0f)
 		{
-			visualize_t += 0.25f * delta;
+			visualize_t += 0.5f * delta;
 			if (visualize_t > 1.0f)
 				visualize_t = 1.0f;
 		}
@@ -552,8 +547,11 @@ void drawScene()
 	hermiteG = mat24(hermitePoints[0], hermitePoints[1], bernsteinPoints[9] - hermitePoints[2], hermitePoints[2]);
 
 	//Kirajzolás
+
 	drawBackground();
+
 	glColor3f(0.0f, 0.0f, 0.0f);
+	glLineWidth(2.0f);
 
 	drawLines();
 	drawWheels();
@@ -562,6 +560,7 @@ void drawScene()
 	drawConnectedBernstein();
 
 	//Vizualizáció
+	glLineWidth(1.0f);
 	if (visualize & V_B_CPOLY)
 		visualizeBernstein();
 	if (visualize & V_DC_SWEEP || visualize & V_DC_CPOLY)
@@ -583,30 +582,31 @@ void init()
 	glShadeModel(GL_FLAT);
 	glEnable(GL_POINT_SMOOTH);
 	glPointSize(CP_R);
-	glLineWidth(2.0f);
-	setHermiteM();
+	hermiteM = inverse(mat4(getHermiteT(hermiteT[0]), getHermiteT(hermiteT[1]), getHermiteT(hermiteT[2], true), getHermiteT(hermiteT[3], false), true));
 }
 
 void initVectors()
 {
-	bernsteinPoints.push_back(vec2(180.0f, 205.0f));
-	bernsteinPoints.push_back(vec2(180.0f, 234.0f));
-	bernsteinPoints.push_back(vec2(180.0f, 247.0f));
-	bernsteinPoints.push_back(vec2(223.0f, 247.0f));
-	bernsteinPoints.push_back(vec2(253.0f, 253.0f));
-	bernsteinPoints.push_back(vec2(229.0f, 280.0f));
-	bernsteinPoints.push_back(vec2(249.0f, 327.0f));
-	bernsteinPoints.push_back(vec2(270.0f, 375.0f));
-	bernsteinPoints.push_back(vec2(376.0f, 465.0f));
-	bernsteinPoints.push_back(vec2(532.0f, 438.0f));
-	hermitePoints.push_back(vec2(750.0f, 200.0f));
-	hermitePoints.push_back(vec2(750.0f, 250.0f));
-	hermitePoints.push_back(vec2(600.0f, 350.0f));
-	dcPoints.push_back(vec2(360.0f, 329.0f));
-	dcPoints.push_back(vec2(366.0f, 368.0f));
-	dcPoints.push_back(vec2(431.0f, 402.0f));
-	dcPoints.push_back(vec2(496.0f, 398.0f));
-	dcPoints.push_back(vec2(534.0f, 351.0f));
+	bernsteinPoints.push_back(vec2(85.0f, 200.0f));
+	bernsteinPoints.push_back(vec2(85.0f, 240.0f));
+	bernsteinPoints.push_back(vec2(85.0f, 250.0f));
+	bernsteinPoints.push_back(vec2(133.0f, 250.0f));
+	bernsteinPoints.push_back(vec2(198.0f, 250.0f));
+	bernsteinPoints.push_back(vec2(152.0f, 300.0f));
+	bernsteinPoints.push_back(vec2(193.0f, 361.0f));
+	bernsteinPoints.push_back(vec2(230.0f, 418.0f));
+	bernsteinPoints.push_back(vec2(358.0f, 472.0f));
+	bernsteinPoints.push_back(vec2(502.0f, 437.0f));
+	hermitePoints.push_back(vec2(740.0f, 200.0f));
+	hermitePoints.push_back(vec2(740.0f, 250.0f));
+	hermitePoints.push_back(vec2(592.0f, 344.0f));
+	dcPoints.push_back(vec2(270.0f, 310.0f));
+	dcPoints.push_back(vec2(292.0f, 385.0f));
+	dcPoints.push_back(vec2(369.0f, 424.0f));
+	dcPoints.push_back(vec2(477.0f, 418.0f));
+	dcPoints.push_back(vec2(535.0f, 320.0f));
+
+
 }
 
 int main(int argc, char * argv[])
@@ -614,7 +614,7 @@ int main(int argc, char * argv[])
 	initVectors();
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_MULTISAMPLE);
 	glutInitWindowSize(win.width, win.height);
 	glutInitWindowPosition(100, 100);
 	glutCreateWindow(argv[0]);
