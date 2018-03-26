@@ -23,20 +23,6 @@ typedef struct TWindow
 } WINDOW;
 WINDOW win = { 800, 600 };
 
-typedef struct TEnvironment
-{
-	float ground;
-	vec3 skyColor;
-	vec3 groundColor;
-	TEnvironment(float _ground, vec3 _groundColor, vec3 _skyColor)
-	{
-		ground = _ground;
-		groundColor = _groundColor;
-		skyColor = _skyColor;
-	}
-} ENVIRONMENT;
-ENVIRONMENT env = { 200.0f, {0.0f, 0.6f, 0.0f}, {0.0f, 0.5f, 1.0f} };
-
 struct 
 {
 	vec3 black = vec3(0.0f, 0.0f, 0.0f);
@@ -47,6 +33,8 @@ struct
 	vec3 yellow = vec3(1.0f, 1.0f, 0.0f);
 	vec3 blue = vec3(0.0f, 0.0f, 1.0f);
 	vec3 gray = vec3(0.35f, 0.35f, 0.35f);
+	vec3 sky = vec3(0.0f, 0.5f, 1.0f);
+	vec3 ground = vec3(0.0f, 0.6f, 0.0f);
 } colors;
 
 bool * const keyStates = new bool[256]();
@@ -216,8 +204,8 @@ void drawTextOverlay()
 
 void drawBackground()
 {
-	colorV3(env.groundColor);
-	glRectf(0.0f, 0.0f, win.width, env.ground);
+	colorV3(colors.ground);
+	glRectf(0.0f, 0.0f, win.width, 160.0f);
 }
 
 void drawConnectedBernstein()
@@ -618,7 +606,7 @@ void drawScene()
 void init()
 {
 	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
-	glClearColor(env.skyColor.x, env.skyColor.y, env.skyColor.z, 0.0f);
+	glClearColor(colors.sky.x, colors.sky.y, colors.sky.z, 1.0f);
 	glMatrixMode(GL_PROJECTION);
 	gluOrtho2D(0, win.width, 0, win.height);
 	glShadeModel(GL_FLAT);
