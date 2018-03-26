@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 #include <fstream>
-#define BYTE_TO_BINARY(byte) (byte & 0x80 ? '1' : '0'), (byte & 0x40 ? '1' : '0'), (byte & 0x20 ? '1' : '0'), (byte & 0x10 ? '1' : '0'), (byte & 0x08 ? '1' : '0'), (byte & 0x04 ? '1' : '0'), (byte & 0x02 ? '1' : '0'), (byte & 0x01 ? '1' : '0') 
+
+void initVectors();
 
 #pragma region GLOBALS
 
@@ -58,13 +59,15 @@ vec2 * selectedCP = NULL;
 
 double delta, currentTime, previousTime;
 
-#define V_CP (char)0b00000001
-#define V_B_CPOLY (char)0b00000010
-#define V_H_CPOLY (char)0b00000100
-#define V_DC_CPOLY (char)0b00010000
-#define V_DC_SWEEP (char)0b01000000
+#define V_B_CP			(char)0b00000001
+#define V_B_POLY		(char)0b00000010
+#define V_H_CP			(char)0b00000100
+#define V_H_POLY		(char)0b00001000
+#define V_DC_CP			(char)0b00010000
+#define V_DC_POLY		(char)0b00100000
+#define V_DC_SEGMENTS	(char)0b01000000
 
-char visualize = V_CP;
+char visualize = V_B_CP | V_H_CP | V_DC_CP;
 float visualize_t = 0.0f;
 
 std::vector<vec2> bernsteinPoints;	//Bernstein-Bezier görbe pontjai
@@ -72,7 +75,7 @@ std::vector<vec2> dcPoints;			//de-Casteljau-Bezier görbe pontjai
 std::vector<vec2> hermitePoints;	//Hermite görbe pontjai
 std::vector<vec2> dcVisPoints;		//de-Casteljau algoritmus osztópontjai
 
-const vec4 hermiteT = { -1.0f, -0.5f, 1.0f, 1.0f };
+const vec3 hermiteT = { -1.0f, -0.5f, 1.0f};
 mat4 hermiteM;
 mat24 hermiteG;
 
@@ -151,7 +154,6 @@ void colorV3(vec3 rgb)
 	glColor3f(rgb.x, rgb.y, rgb.z);
 }
 
-//C-string kiírása glut ablakba
 void drawText(float x, float y, const char * s)
 {
 	glRasterPos2f(x, y);
@@ -170,61 +172,52 @@ void drawTextOverlay()
 
 	left = 45.0f;
 	top -= 14.0f;
-	str = (visualize & V_CP) ? "1: [x] " : "1: [ ] ";
-	str += "Kontrollpontok";
+	str = (visualize & V_B_CP) ? "1: [x] " : "1: [ ] ";
+	str += "Bernstein kontrollpontok";
 	drawText(left, top, str.c_str());
 
 	top -= 14.0f;
-	str = (visualize & V_B_CPOLY) ? "2: [x] " : "2: [ ] ";
+	str = (visualize & V_B_POLY) ? "2: [x] " : "2: [ ] ";
 	str += "Bernstein kontrollpoligon";
 	drawText(left, top, str.c_str());
 
 	top -= 14.0f;
-	str = (visualize & V_H_CPOLY) ? "3: [x] " : "3: [ ] ";
+	str = (visualize & V_H_CP) ? "3: [x] " : "3: [ ] ";
+	str += "Hermite kontrollpontok";
+	drawText(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_H_POLY) ? "4: [x] " : "4: [ ] ";
 	str += "Hermite kontrollpoligon";
 	drawText(left, top, str.c_str());
 
 	top -= 14.0f;
-	str = (visualize & V_DC_CPOLY) ? "4: [x] " : "4: [ ] ";
+	str = (visualize & V_DC_CP) ? "5: [x] " : "5: [ ] ";
+	str += "de-Casteljau kontrollpontok";
+	drawText(left, top, str.c_str());
+
+	top -= 14.0f;
+	str = (visualize & V_DC_POLY) ? "6: [x] " : "6: [ ] ";
 	str += "de-Casteljau kontrollpoligon";
 	drawText(left, top, str.c_str());
 
 	top -= 14.0f;
-	str = (visualize & V_DC_SWEEP) ? "5: [x] " : "5: [ ] ";
-	str += "de-Casteljau felezok";
+	str = (visualize & V_DC_SEGMENTS) ? "7: [x] " : "7: [ ] ";
+	str += "de-Casteljau szakaszok";
 	str += " (t = " + std::to_string(visualize_t).substr(0, 4) + ")";
 	drawText(left, top, str.c_str());
 
-	top -= 28.0f;
-	left = 30.0f;
-	drawText(left, top, "X: kilepes");
+	top = win.height - 20.0f;
+	left = 500.0f;
+	drawText(left, top, "<- ->: P(t) mozgatasa");
 	top -= 14.0f;
-	drawText(left, top, "<- ->: t mozgatasa");
+	drawText(left, top, "X: kilepes");
 }
 
 void drawBackground()
 {
 	colorV3(env.groundColor);
 	glRectf(0.0f, 0.0f, win.width, env.ground);
-}
-
-void drawCPs()
-{
-	colorV3(colors.darkblue);
-	glBegin(GL_POINTS);
-	for (int i = 0; i < bernsteinPoints.size(); ++i)
-	{
-		glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
-	}
-	for (int i = 0; i < dcPoints.size(); ++i)
-	{
-		glVertex2f(dcPoints[i].x, dcPoints[i].y);
-	}
-	for (int i = 0; i < hermitePoints.size(); ++i)
-	{
-		glVertex2f(hermitePoints[i].x, hermitePoints[i].y);
-	}
-	glEnd();
 }
 
 void drawConnectedBernstein()
@@ -279,11 +272,24 @@ void drawConnectedBernstein()
 
 void visualizeBernstein()
 {
-	colorV3(colors.black);
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < bernsteinPoints.size(); ++i)
-		glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
-	glEnd();
+	if (visualize & V_B_CP)
+	{
+		colorV3(colors.darkblue);
+		glBegin(GL_POINTS);
+		for (int i = 0; i < bernsteinPoints.size(); ++i)
+		{
+			glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
+		}
+		glEnd();
+	}
+	if (visualize &V_B_POLY)
+	{
+		colorV3(colors.black);
+		glBegin(GL_LINE_STRIP);
+		for (int i = 0; i < bernsteinPoints.size(); ++i)
+			glVertex2f(bernsteinPoints[i].x, bernsteinPoints[i].y);
+		glEnd();
+	}
 }
 
 void drawHermite()
@@ -292,7 +298,7 @@ void drawHermite()
 	vec2 p;
 	colorV3(colors.yellow);
 	glBegin(GL_LINE_STRIP);
-	for (float t = hermiteT[0]; t <= hermiteT[3]; t += (hermiteT[3] - hermiteT[0]) / 64.0f)
+	for (float t = hermiteT[0]; t <= hermiteT[2]; t += (hermiteT[2] - hermiteT[0]) / 64.0f)
 	{
 		tv = getHermiteT(t);
 		p = hermiteG * hermiteM * tv;
@@ -303,12 +309,25 @@ void drawHermite()
 
 void visualizeHermite()
 {
-	colorV3(colors.black);
-	glBegin(GL_LINE_STRIP);
-	glVertex2f(hermitePoints[0].x, hermitePoints[0].y);
-	glVertex2f(hermitePoints[1].x, hermitePoints[1].y);
-	glVertex2f(hermitePoints[2].x, hermitePoints[2].y);
-	glEnd();
+	if (visualize & V_H_CP)
+	{
+		colorV3(colors.darkblue);
+		glBegin(GL_POINTS);
+		for (int i = 0; i < hermitePoints.size(); ++i)
+		{
+			glVertex2f(hermitePoints[i].x, hermitePoints[i].y);
+		}
+		glEnd();
+	}
+	if (visualize & V_H_POLY)
+	{
+		colorV3(colors.black);
+		glBegin(GL_LINE_STRIP);
+		glVertex2f(hermitePoints[0].x, hermitePoints[0].y);
+		glVertex2f(hermitePoints[1].x, hermitePoints[1].y);
+		glVertex2f(hermitePoints[2].x, hermitePoints[2].y);
+		glEnd();
+	}
 }
 
 void drawDeCasteljau()
@@ -325,15 +344,25 @@ void drawDeCasteljau()
 
 void visualizeDeCasteljau()
 {
+	if (visualize & V_DC_CP)
+	{
+		colorV3(colors.darkblue);
+		glBegin(GL_POINTS);
+		for (int i = 0; i < dcPoints.size(); ++i)
+		{
+			glVertex2f(dcPoints[i].x, dcPoints[i].y);
+		}
+		glEnd();
+	}
 	colorV3(colors.blue);
-	if (visualize & V_DC_CPOLY || visualize & V_DC_SWEEP)
+	if (visualize & V_DC_POLY || visualize & V_DC_SEGMENTS)
 	{
 		glBegin(GL_LINE_STRIP);
 		for (int i = 0; i < dcPoints.size(); ++i)
 			glVertex2f(dcPoints[i].x, dcPoints[i].y);
 		glEnd();
 	}
-	if (visualize & V_DC_SWEEP)
+	if (visualize & V_DC_SEGMENTS)
 	{
 		vec2 p = dcPoint(dcPoints, visualize_t, &dcVisPoints);
 		colorV3(colors.blue);
@@ -405,6 +434,7 @@ bool keyPress(int key)
 {
 	return keyStates[key] && !keyPreviousStates[key];
 }
+
 bool mousePress(int button)
 {
 	return mouseStates[button] && !mousePreviousStates[button];
@@ -418,23 +448,31 @@ void keyProcess(int x)
 	}
 	if (keyPress('1'))
 	{
-		visualize ^= V_CP;
+		visualize ^= V_B_CP;
 	}
 	if (keyPress('2'))
 	{
-		visualize ^= V_B_CPOLY;
+		visualize ^= V_B_POLY;
 	}
 	if (keyPress('3'))
 	{
-		visualize ^= V_H_CPOLY;
+		visualize ^= V_H_CP;
 	}
 	if (keyPress('4'))
 	{
-		visualize ^= V_DC_CPOLY;
+		visualize ^= V_H_POLY;
 	}
 	if (keyPress('5'))
 	{
-		visualize ^= V_DC_SWEEP;
+		visualize ^= V_DC_CP;
+	}
+	if (keyPress('6'))
+	{
+		visualize ^= V_DC_POLY;
+	}
+	if (keyPress('7'))
+	{
+		visualize ^= V_DC_SEGMENTS;
 	}
 	if (keyStates[GLUT_KEY_LEFT])
 	{
@@ -466,18 +504,22 @@ void keyDown(unsigned char key, int x, int y)
 {
 	keyStates[key] = true;
 }
+
 void keyDown(int key, int x, int y)
 {
 	keyStates[key] = true;
 }
+
 void keyUp(unsigned char key, int x, int y)
 {
 	keyStates[key] = false;
 }
+
 void keyUp(int key, int x, int y)
 {
 	keyStates[key] = false;
 }
+
 void mouseChange(int button, int state, int x, int y)
 {
 	mouseStates[button] = state;
@@ -554,10 +596,9 @@ void drawScene()
 	//Kirajzolás
 
 	drawBackground();
+	drawTextOverlay();
 
-	glColor3f(0.0f, 0.0f, 0.0f);
 	glLineWidth(2.0f);
-
 	drawLines();
 	drawWheels();
 	drawHermite();
@@ -566,15 +607,11 @@ void drawScene()
 
 	//Vizualizáció
 	glLineWidth(1.0f);
-	if (visualize & V_B_CPOLY)
-		visualizeBernstein();
-	if (visualize & V_DC_SWEEP || visualize & V_DC_CPOLY)
-		visualizeDeCasteljau();
-	if (visualize & V_H_CPOLY)
-		visualizeHermite();
-	if (visualize & V_CP)
-		drawCPs();
-	drawTextOverlay();
+	visualizeBernstein();
+	visualizeDeCasteljau();
+	visualizeHermite();
+
+
 	glutSwapBuffers();
 }
 
@@ -587,7 +624,7 @@ void init()
 	glShadeModel(GL_FLAT);
 	glEnable(GL_POINT_SMOOTH);
 	glPointSize(CP_R * 2);
-	hermiteM = inverse(mat4(getHermiteT(hermiteT[0]), getHermiteT(hermiteT[1]), getHermiteT(hermiteT[2], true), getHermiteT(hermiteT[3], false), true));
+	hermiteM = inverse(mat4(getHermiteT(hermiteT[0]), getHermiteT(hermiteT[1]), getHermiteT(1.0f, true), getHermiteT(hermiteT[2], false), true));
 }
 
 void initVectors()
