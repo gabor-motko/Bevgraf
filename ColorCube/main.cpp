@@ -6,41 +6,34 @@
 #include <string>
 #include <vector>
 #include <fstream>
-
-void initVectors();
-
-class Quad
-{
-public:
-	vec3 points[4];
-	vec3 normal()
-	{
-		return cross(points[1] - points[0], points[2] - points[0]);
-	}
-	vec3 center()
-	{
-		return (points[0] + points[1] + points[2] + points[3]) / 4.0;
-	}
-	Quad();
-};
+#include <algorithm>
 
 #pragma region GLOBALS
-
-typedef struct TWindow
+struct
 {
 	GLsizei width = 800;
 	GLsizei height = 600;
-	TWindow(int w, int h)
+	GLint divider = 400;
+	vec2 size()
 	{
-		width = w;
-		height = h;
+		return vec2(this->width, this->height);
 	}
-} WINDOW;
-WINDOW win = { 800, 600 };
+} win;
 
 struct
 {
-	vec3 black = vec3(0.0f, 0.0f, 0.0f);
+	GLsizei width = 500;
+	GLsizei height = 500;
+	vec2 size()
+	{
+		return vec2(this->width, this->height);
+	}
+} view;
+
+struct
+{
+	vec3 black = vec3(0.0f);
+	vec3 white = vec3(1.0);
 	vec3 darkblue = vec3(0.0f, 0.0f, 0.7f);
 	vec3 darkred = vec3(0.7f, 0.0f, 0.0f);
 	vec3 red = vec3(1.0f, 0.2f, 0.0f);
@@ -49,7 +42,9 @@ struct
 	vec3 blue = vec3(0.0f, 0.0f, 1.0f);
 	vec3 gray = vec3(0.35f, 0.35f, 0.35f);
 	vec3 sky = vec3(0.0f, 0.5f, 1.0f);
-	vec3 ground = vec3(0.0f, 0.6f, 0.0f);
+	vec3 green = vec3(0.0f, 0.70f, 0.0f);
+	vec3 darkgreen = vec3(0.0f, 0.5f, 0.0f);
+
 } colors;
 
 bool * const keyStates = new bool[256]();
@@ -57,19 +52,95 @@ bool * const keyPreviousStates = new bool[256]();
 bool * const mouseStates = new bool[5]();
 bool * const mousePreviousStates = new bool[5]();
 
-
 double delta, currentTime, previousTime;
 float visualize_t = 0.0f;
 
-struct EDGE
+float projCenter = 5.0f;
+class Quad
 {
-	int v1, v2;
+public:
+	vec3 points[4];
+	vec3 color;
+	vec3 normal()
+	{
+		return cross(points[1] - points[0], points[2] - points[0]);
+	}
+	vec3 center()
+	{
+		return (points[0] + points[1] + points[2] + points[3]) / 4.0;
+	}
+	Quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3, vec3 color)
+	{
+		this->points[0] = p0;
+		this->points[1] = p1;
+		this->points[2] = p2;
+		this->points[3] = p3;
+		this->color = color;
+	}
+
+	static bool compareOrtho(Quad a, Quad b)
+	{
+		return a.center().z < b.center().z;
+	}
+	static bool comparePerspective(Quad a, Quad b)
+	{
+		return fabs(a.center().z - projCenter) > fabs(b.center().z - projCenter);
+	}
 };
 
 std::vector<vec3> points;
-std::vector<struct EDGE> edges;
+std::vector<Quad> faces;
+
+void colorv3(vec3 rgb)
+{
+	glColor3f(rgb.x, rgb.y, rgb.z);
+}
+
+void colorv3a(vec3 rgb, float a)
+{
+	glColor4f(rgb.x, rgb.y, rgb.z, a);
+}
 
 #pragma endregion
+
+#pragma region GRAPHICS
+
+mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), vec2((win.width - view.width) / 2.0f, (win.height - view.height) / 2.0f), view.size());
+
+void drawCube(std::vector<Quad> quads, bool useOrtho)
+{
+	mat4 proj;
+	if (useOrtho)
+	{
+		std::sort(faces.begin(), faces.end(), Quad::compareOrtho);
+		proj = ortho();
+	}
+	else
+	{
+		std::sort(faces.begin(), faces.end(), Quad::comparePerspective);
+		proj = perspective(projCenter);
+	}
+	vec3 * projected = new vec3[4];
+	for (int i = 0; i < faces.size(); ++i)
+	{
+		Quad f = faces[i];
+		for (int j = 0; j < 4; ++j)
+		{
+			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
+		}
+		colorv3(f.color);
+		//glBegin(GL_LINE_LOOP);
+		glBegin(GL_QUADS);
+		glVertex2f(projected[0].x, projected[0].y);
+		glVertex2f(projected[1].x, projected[1].y);
+		glVertex2f(projected[2].x, projected[2].y);
+		glVertex2f(projected[3].x, projected[3].y);
+		glEnd();
+	}
+}
+
+#pragma endregion
+
 
 #pragma region INPUT
 
@@ -91,57 +162,83 @@ void keyProcess(int x)
 	}
 	if (keyStates['w'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateX(degToRad(60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateX(degToRad(60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
 	}
 	if (keyStates['s'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateX(degToRad(-60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateX(degToRad(-60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
 	}
 	if (keyStates['a'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateY(degToRad(60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateY(degToRad(60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
 	}
 	if (keyStates['d'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateY(degToRad(-60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateY(degToRad(-60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
 	}
 	if (keyStates['q'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateZ(degToRad(60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateZ(degToRad(60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
 	}
 	if (keyStates['e'])
 	{
-		for (int i = 0; i < points.size(); ++i)
+		mat4 rot = rotateZ(degToRad(-60 * delta));
+		for (int i = 0; i < faces.size(); ++i)
 		{
-			vec4 h = ihToH(points[i]);
-			points[i] = hToIh(rotateZ(degToRad(-60 * delta)) * h);
-
+			Quad * f = &faces[i];
+			for (int j = 0; j < 4; ++j)
+			{
+				f->points[j] = hToIh(rot * ihToH(f->points[j]));
+			}
 		}
+	}
+	if (keyStates['r'])
+	{
+		projCenter += 5.0f * delta;
+	}
+	if (keyStates['f'])
+	{
+		projCenter -= 5.0f * delta;
 	}
 	if (keyStates[GLUT_KEY_LEFT])
 	{
@@ -189,6 +286,20 @@ void keyUp(int key, int x, int y)
 	keyStates[key] = false;
 }
 
+void mouseButton(int button, int state, int x, int y)
+{
+	mouseStates[button] = !state;
+}
+
+void mouseMove(int x, int y)
+{
+	vec2 pos = vec2(x, win.height - y);
+	if (mouseStates[GLUT_LEFT_BUTTON] == GLUT_DOWN)
+	{
+		if(fabs())
+	}
+}
+
 #pragma endregion
 
 #pragma region SYSTEM
@@ -205,30 +316,20 @@ void display()
 	getDelta();
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	vec3 * ppoints = new vec3[8];
+	colorv3(colors.white);
+	drawCube(faces, false);
 
+	glScissor(0.0f, 0.0f, win.divider, win.height);
+	glEnable(GL_SCISSOR_TEST);
+	glClear(GL_COLOR_BUFFER_BIT);
+	colorv3(colors.green);
+	glRectf(0.0f, 0.0f, win.divider, win.height);
 
-	mat4 proj = perspective(5.0f);
-	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), vec2(), vec2(win.width, win.height));
-	mat4 tr = w2v * proj;
+	colorv3(colors.white);
+	drawCube(faces, true);
 
-	glBegin(GL_POINTS);
-	for (int i = 0; i < points.size(); ++i)
-	{
-		ppoints[i] = hToIh(tr * ihToH(points[i]));
-		glVertex2f(ppoints[i].x, ppoints[i].y);
-	}
-	glEnd();
+	glDisable(GL_SCISSOR_TEST);
 
-	glBegin(GL_LINES);
-	for (int i = 0; i < edges.size(); ++i)
-	{
-		vec3 a = ppoints[edges[i].v1];
-		vec3 b = ppoints[edges[i].v2];
-		glVertex2f(a.x, a.y);
-		glVertex2f(b.x, b.y);
-	}
-	glEnd();
 
 	glutSwapBuffers();
 }
@@ -236,11 +337,12 @@ void display()
 void init()
 {
 	previousTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
-	glClearColor(colors.sky.x, colors.sky.y, colors.sky.z, 1.0f);
+	glClearColor(colors.black.x, colors.black.y, colors.black.z, 1.0f);
 	glMatrixMode(GL_PROJECTION);
 	gluOrtho2D(0, win.width, 0, win.height);
 	glShadeModel(GL_FLAT);
 	glEnable(GL_POINT_SMOOTH);
+	glEnable(GL_BLEND);
 	glPointSize(3.0f);
 }
 
@@ -254,18 +356,13 @@ void initVectors()
 	points.push_back(vec3(-1.0, 1.0, -1.0));	//5
 	points.push_back(vec3(-1.0, -1.0, 1.0));	//6
 	points.push_back(vec3(-1.0, -1.0, -1.0));	//7
-	edges.push_back({ 0, 1 });
-	edges.push_back({ 0, 2 });
-	edges.push_back({ 1, 3 });
-	edges.push_back({ 2, 3 });
-	edges.push_back({ 4, 5 });
-	edges.push_back({ 4, 6 });
-	edges.push_back({ 5, 7 });
-	edges.push_back({ 7, 6 });
-	edges.push_back({ 0, 4 });
-	edges.push_back({ 1, 5 });
-	edges.push_back({ 2, 6 });
-	edges.push_back({ 3, 7 });
+
+	faces.push_back(Quad(points[7], points[3], points[1], points[5], colors.blue));
+	faces.push_back(Quad(points[2], points[6], points[4], points[0], colors.red));
+	faces.push_back(Quad(points[3], points[2], points[0], points[1], colors.orange));
+	faces.push_back(Quad(points[6], points[7], points[5], points[4], colors.sky));
+	faces.push_back(Quad(points[5], points[1], points[0], points[4], colors.yellow));
+	faces.push_back(Quad(points[6], points[2], points[3], points[7], colors.darkred));
 }
 
 int main(int argc, char * argv[])
@@ -273,17 +370,20 @@ int main(int argc, char * argv[])
 	initVectors();
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_MULTISAMPLE);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowSize(win.width, win.height);
 	glutInitWindowPosition(100, 100);
 	glutCreateWindow(argv[0]);
 	init();
 
 	glutDisplayFunc(display);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glutKeyboardFunc(keyDown);
 	glutKeyboardUpFunc(keyUp);
 	glutSpecialFunc(keyDown);
 	glutSpecialUpFunc(keyUp);
+	glutMouseFunc(mouseButton);
+	glutMotionFunc(mouseMove);
 
 	glutTimerFunc(10, keyProcess, 0);
 

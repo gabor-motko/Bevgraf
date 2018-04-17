@@ -165,7 +165,6 @@ void drawBernstein()
 			qt.y += bernsteinPolynomial(i, n, t) * points[i].y;
 		}
 		glVertex2f(qt.x, qt.y);
-		printf("point: %d %d\n", qt.x, qt.y);
 	}
 	glEnd();
 }
