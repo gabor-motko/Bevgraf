@@ -9,6 +9,21 @@
 
 void initVectors();
 
+class Quad
+{
+public:
+	vec3 points[4];
+	vec3 normal()
+	{
+		return cross(points[1] - points[0], points[2] - points[0]);
+	}
+	vec3 center()
+	{
+		return (points[0] + points[1] + points[2] + points[3]) / 4.0;
+	}
+	Quad();
+};
+
 #pragma region GLOBALS
 
 typedef struct TWindow

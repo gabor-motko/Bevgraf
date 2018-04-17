@@ -21,6 +21,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SquareFlower", "SquareFlowe
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Trans3D", "Trans3D\Trans3D.vcxproj", "{7AAAA5B9-C755-4C8F-A0A3-A5490EC55266}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorCube", "ColorCube\ColorCube.vcxproj", "{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -101,6 +103,14 @@ Global
 		{7AAAA5B9-C755-4C8F-A0A3-A5490EC55266}.Release|x64.Build.0 = Release|x64
 		{7AAAA5B9-C755-4C8F-A0A3-A5490EC55266}.Release|x86.ActiveCfg = Release|Win32
 		{7AAAA5B9-C755-4C8F-A0A3-A5490EC55266}.Release|x86.Build.0 = Release|Win32
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Debug|x64.ActiveCfg = Debug|x64
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Debug|x64.Build.0 = Debug|x64
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Debug|x86.ActiveCfg = Debug|Win32
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Debug|x86.Build.0 = Debug|Win32
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Release|x64.ActiveCfg = Release|x64
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Release|x64.Build.0 = Release|x64
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Release|x86.ActiveCfg = Release|Win32
+		{2D323C10-8DA3-4ADB-B432-17C6C7EADA28}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
