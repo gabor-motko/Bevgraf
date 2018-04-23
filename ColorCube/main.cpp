@@ -8,6 +8,8 @@
 #include <fstream>
 #include <algorithm>
 
+//#define USE_LOCAL_AXES
+
 #pragma region GLOBALS
 struct
 {
@@ -76,21 +78,27 @@ float projCenter = 5.0f;
 class Quad
 {
 public:
+	//Merõleges tengelyek körüli szögek
 	static vec3 rotation;
+	//Forgatási mátrix
 	static mat4 getRotMatrix()
 	{
-		return rotateX(rotation.x) * rotateY(rotation.y) * rotateZ(rotation.z);
+		//return rotateX(rotation.x) * rotateY(rotation.y) * rotateZ(rotation.z);
+		return rotateZ(Quad::rotation.z) * rotateY(Quad::rotation.y) * rotateX(Quad::rotation.x);
 	}
 	vec3 points[4];
 	vec3 color;
-	vec3 normal()
+	//Normál vektor
+	vec3 getNormal()
 	{
 		return cross(points[1] - points[0], points[2] - points[0]);
 	}
-	vec3 center()
+	//Középpont
+	vec3 getCenter()
 	{
-		return (points[0] + points[1] + points[2] + points[3]) / 4.0;
+		return (points[0] + points[1] + points[2] + points[3]) / 4.0f;
 	}
+	//Konstruktor: négy pont és szín
 	Quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3, vec3 color)
 	{
 		this->points[0] = p0;
@@ -100,13 +108,15 @@ public:
 		this->color = color;
 	}
 
+	//Összehasonlító függvény merõleges vetítéshez
 	static bool compareOrtho(Quad a, Quad b)
 	{
-		return a.center().z < b.center().z;
+		return a.getCenter().z < b.getCenter().z;
 	}
+	//Összehasonlító függvény centrális vetítéshez
 	static bool comparePerspective(Quad a, Quad b)
 	{
-		return fabs(a.center().z - projCenter) > fabs(b.center().z - projCenter);
+		return fabs(a.getCenter().z - projCenter) > fabs(b.getCenter().z - projCenter);
 	}
 };
 
@@ -129,48 +139,9 @@ void printv2(vec2 v)
 
 #pragma region GRAPHICS
 
+#ifdef USE_LOCAL_AXES
+//Kocka kirajzolása helyi tengelyeken forgatva
 void drawCube(std::vector<Quad> quads, bool useOrtho)
-{
-	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), view.pos(), view.size());
-	mat4 proj;
-	if (useOrtho)
-	{
-		std::sort(quads.begin(), quads.end(), Quad::compareOrtho);
-		proj = ortho();
-	}
-	else
-	{
-		std::sort(quads.begin(), quads.end(), Quad::comparePerspective);
-		proj = perspective(projCenter);
-	}
-	vec3 * projected = new vec3[4];
-	for (int i = 0; i < quads.size(); ++i)
-	{
-		Quad f = quads[i];
-		for (int j = 0; j < 4; ++j)
-		{
-			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
-		}
-
-		if (win.wireframe)
-		{
-			colorv3(colors.white);
-			glBegin(GL_LINE_LOOP);
-		}
-		else
-		{
-			colorv3(f.color);
-			glBegin(GL_QUADS);
-		}
-		glVertex2f(projected[0].x, projected[0].y);
-		glVertex2f(projected[1].x, projected[1].y);
-		glVertex2f(projected[2].x, projected[2].y);
-		glVertex2f(projected[3].x, projected[3].y);
-		glEnd();
-	}
-}
-
-void drawCubeLocal(std::vector<Quad> quads, bool useOrtho)
 {
 	mat4 rot = Quad::getRotMatrix();
 	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), view.pos(), view.size());
@@ -220,6 +191,51 @@ void drawCubeLocal(std::vector<Quad> quads, bool useOrtho)
 	}
 }
 
+#else
+//Kocka kirajzolása globális tengelyeken forgatva
+void drawCube(std::vector<Quad> quads, bool useOrtho)
+{
+	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), view.pos(), view.size());
+	mat4 proj;
+	if (useOrtho)
+	{
+		std::sort(quads.begin(), quads.end(), Quad::compareOrtho);
+		proj = ortho();
+	}
+	else
+	{
+		std::sort(quads.begin(), quads.end(), Quad::comparePerspective);
+		proj = perspective(projCenter);
+	}
+	vec3 * projected = new vec3[4];
+	for (int i = 0; i < quads.size(); ++i)
+	{
+		Quad f = quads[i];
+		for (int j = 0; j < 4; ++j)
+		{
+			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
+		}
+
+		if (win.wireframe)
+		{
+			colorv3(colors.white);
+			glBegin(GL_LINE_LOOP);
+		}
+		else
+		{
+			colorv3(f.color);
+			glBegin(GL_QUADS);
+		}
+		glVertex2f(projected[0].x, projected[0].y);
+		glVertex2f(projected[1].x, projected[1].y);
+		glVertex2f(projected[2].x, projected[2].y);
+		glVertex2f(projected[3].x, projected[3].y);
+		glEnd();
+	}
+}
+
+#endif
+
 void drawText(float x, float y, const char * s)
 {
 	glRasterPos2f(x, y);
@@ -251,6 +267,7 @@ bool mousePress(int button)
 	return mouseStates[button] && !mousePreviousStates[button];
 }
 
+
 void keyProcess(int x)
 {
 	if (keyStates['x'])
@@ -261,6 +278,32 @@ void keyProcess(int x)
 	{
 		win.wireframe = !win.wireframe;
 	}
+#ifdef USE_LOCAL_AXES
+	if (keyStates['w'])
+	{
+		Quad::rotation.x -= degToRad(60 * delta);
+	}
+	if (keyStates['s'])
+	{
+		Quad::rotation.x += degToRad(60 * delta);
+	}
+	if (keyStates['a'])
+	{
+		Quad::rotation.y += degToRad(60 * delta);
+	}
+	if (keyStates['d'])
+	{
+		Quad::rotation.y -= degToRad(60 * delta);
+	}
+	if (keyStates['q'])
+	{
+		Quad::rotation.z += degToRad(60 * delta);
+	}
+	if (keyStates['e'])
+	{
+		Quad::rotation.z -= degToRad(60 * delta);
+	}
+#else
 	if (keyStates['w'])
 	{
 		mat4 rot = rotateX(degToRad(-60 * delta));
@@ -333,13 +376,16 @@ void keyProcess(int x)
 			}
 		}
 	}
+#endif
 	if (keyStates['r'])
 	{
-		projCenter += 5.0f * delta;
+		projCenter += 1.0f * delta;
 	}
 	if (keyStates['f'])
 	{
-		projCenter -= 5.0f * delta;
+		projCenter -= 1.0f * delta;
+		if (projCenter < 1.8f)
+			projCenter = 1.8f;
 	}
 
 	if (mouseStates[GLUT_LEFT_BUTTON] == GLUT_DOWN)
@@ -360,63 +406,7 @@ void keyProcess(int x)
 	glutPostRedisplay();
 	glutTimerFunc(10, keyProcess, 0);
 }
-void keyProcessLocal(int x)
-{
-	if (keyStates['x'])
-	{
-		exit(0);
-	}
-	if (keyStates['w'])
-	{
-		Quad::rotation.x -= degToRad(60 * delta);
-	}
-	if (keyStates['s'])
-	{
-		Quad::rotation.x += degToRad(60 * delta);
-	}
-	if (keyStates['a'])
-	{
-		Quad::rotation.y -= degToRad(60 * delta);
-	}
-	if (keyStates['d'])
-	{
-		Quad::rotation.y += degToRad(60 * delta);
-	}
-	if (keyStates['q'])
-	{
-		Quad::rotation.z -= degToRad(60 * delta);
-	}
-	if (keyStates['e'])
-	{
-		Quad::rotation.z += degToRad(60 * delta);
-	}
-	if (keyStates['r'])
-	{
-		projCenter += 5.0f * delta;
-	}
-	if (keyStates['f'])
-	{
-		projCenter -= 5.0f * delta;
-	}
 
-	if (mouseStates[GLUT_LEFT_BUTTON] == GLUT_DOWN)
-	{
-		if (selectedDivider)
-		{
-			win.divider = mousePos.x;
-		}
-		else
-		{
-			view.setPos(mousePos + relativePos);
-		}
-	}
-
-	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
-	memcpy(mousePreviousStates, mouseStates, 5 * sizeof(bool));
-
-	glutPostRedisplay();
-	glutTimerFunc(10, keyProcess, 0);
-}
 
 void keyDown(unsigned char key, int x, int y)
 {
@@ -472,20 +462,24 @@ void display()
 	getDelta();
 	glClear(GL_COLOR_BUFFER_BIT);
 
+	//Kocka merõleges vetítéssel
 	colorv3(colors.white);
 	drawCube(faces, true);
 
+	//Bal oldal kitakarása
 	colorv3(colors.sky);
 	glScissor(0.0f, 0.0f, win.divider, win.height);
 	glEnable(GL_SCISSOR_TEST);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glRectf(0.0f, 0.0f, win.divider, win.height);
 
+	//Kocka centrális vetítéssel
 	colorv3(colors.white);
 	drawCube(faces, false);
 
 	glDisable(GL_SCISSOR_TEST);
 
+	//Felezõvonal és szöveg
 	colorv3(colors.black);
 	glBegin(GL_LINES);
 	glVertex2f(win.divider, 0.0f);
