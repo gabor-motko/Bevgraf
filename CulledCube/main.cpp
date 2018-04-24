@@ -119,11 +119,16 @@ public:
 		return fabs(a.getCenter().z - projCenter) > fabs(b.getCenter().z - projCenter);
 	}
 
-	static bool isBackface(Quad q, vec3 c)
+	bool isBackfacePerspective(vec3 c)
 	{
-		vec3 v = normalize(c - q.points[0]);
-		vec3 n = normalize(q.getNormal());
+		vec3 v = normalize(c - this->points[0]);
+		vec3 n = normalize(this->getNormal());
 		return dot(n, v) > 0;
+	}
+
+	bool isBackfaceOrtho()
+	{
+		return this->getNormal().z > 0;
 	}
 };
 
@@ -218,8 +223,16 @@ void drawCube(std::vector<Quad> quads, bool useOrtho)
 	for (int i = 0; i < quads.size(); ++i)
 	{
 		Quad f = quads[i];
-		if (Quad::isBackface(f, vec3(0, 0, projCenter)))
-			continue;
+		if (useOrtho)
+		{
+			if (f.isBackfaceOrtho())
+				continue;
+		}
+		else
+		{
+			if (f.isBackfacePerspective(vec3(0, 0, projCenter)))
+				continue;
+		}
 		for (int j = 0; j < 4; ++j)
 		{
 			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
