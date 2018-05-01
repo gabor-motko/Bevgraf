@@ -1,3 +1,5 @@
+//Motkó Gábor BZ79WI
+
 #include <stdio.h>
 #include <GL/glut.h>
 #include <bevgrafmath2017.h>
@@ -9,18 +11,19 @@
 #include <algorithm>
 
 //#define USE_LOCAL_AXES
+//#define ENABLE_LIGHT
 
 #pragma region GLOBALS
 struct
 {
 	int width = 800;
 	int height = 600;
-	float divider = 400.0f;
 	vec2 size()
 	{
 		return vec2(this->width, this->height);
 	}
-	bool wireframe = true;
+	float fps;
+	bool ortho = true;
 } win;
 
 struct
@@ -75,9 +78,12 @@ float visualize_t = 0.0f;
 
 float projCenter = 5.0f;
 
+
 class Quad
 {
 public:
+	//Alapértelmezett szín
+	static vec3 defaultColor;
 	//Merõleges tengelyek körüli szögek
 	static vec3 rotation;
 	//Forgatási mátrix
@@ -107,6 +113,15 @@ public:
 		this->points[3] = p3;
 		this->color = color;
 	}
+	//Konstruktor: négy pont
+	Quad(vec3 p0, vec3 p1, vec3 p2, vec3 p3)
+	{
+		this->points[0] = p0;
+		this->points[1] = p1;
+		this->points[2] = p2;
+		this->points[3] = p3;
+		this->color = Quad::defaultColor;
+	}
 
 	//Összehasonlító függvény merõleges vetítéshez
 	static bool compareOrtho(Quad a, Quad b)
@@ -121,9 +136,81 @@ public:
 };
 
 vec3 Quad::rotation = vec3();
+vec3 Quad::defaultColor = colors.orange;
 
-std::vector<vec3> points;
-std::vector<Quad> faces;
+class Helicoid
+{
+public:
+	vec3 rotation;
+	mat4 getRotationMatrix()
+	{
+		//return rotateZ(this->rotation.z) * rotateY(this->rotation.y) * rotateX(this->rotation.x);
+		return rotateX(this->rotation.x) * rotateY(this->rotation.y) * rotateZ(this->rotation.z);
+	}
+
+	float alpha = 10.0f;
+	float height = 1.0f;
+	float radius = 0.5f;
+
+	float uStep = 0.1f;
+	float vStep = 0.01f;
+
+	std::vector<Quad> quads;
+	void build()
+	{
+		quads.clear();
+		for (float theta = 0.0f; theta <= this->height; theta += this->vStep)
+		{
+			if (theta > height)
+				theta = height;
+			for (float rho = 0.0f; rho <= this->radius; rho += this->uStep)
+			{
+				if (rho > radius)
+					rho = radius;
+				vec3 p0 = Helicoid::helicoPoint(rho, this->alpha, theta);
+				vec3 p1 = Helicoid::helicoPoint(rho + this->uStep, this->alpha, theta);
+				vec3 p2 = Helicoid::helicoPoint(rho + this->uStep, this->alpha, theta + this->vStep);
+				vec3 p3 = Helicoid::helicoPoint(rho, this->alpha, theta + this->vStep);
+				this->quads.push_back(Quad(p0, p1, p2, p3, colors.red));
+			}
+		}
+	}
+	static vec3 helicoPoint(float rho, float alpha, float theta)
+	{
+		return vec3(rho * cosf(alpha * theta), rho * sinf(alpha * theta), theta);
+		//return vec3(rho * cosf(alpha * theta), theta, rho * sinf(alpha * theta));
+	}
+} helicoid;
+
+class Light
+{
+public:
+	vec3 pos;
+	vec3 color;
+	vec3 calculate(vec3 src, vec3 pos, vec3 nrm)
+	{
+		vec3 l = this->pos - pos;
+		float mult = (dot(normalize(nrm), normalize(l)) + 1) / 2.0f;
+		return src * mult;
+	}
+	Light()
+	{
+		this->pos = vec3(0.0f);
+		this->color = vec3(1.0f);
+	}
+	Light(vec3 pos)
+	{
+		this->pos = pos;
+		this->color = vec3(1.0f);
+	}
+	Light(vec3 pos, vec3 color)
+	{
+		this->pos = pos;
+		this->color = color;
+	}
+};
+
+Light light = Light(vec3(2.0f, 2.0f, 0.0f), colors.white);
 
 void colorv3(vec3 rgb)
 {
@@ -139,14 +226,13 @@ void printv2(vec2 v)
 
 #pragma region GRAPHICS
 
-#ifdef USE_LOCAL_AXES
 //Kocka kirajzolása helyi tengelyeken forgatva
-void drawCube(std::vector<Quad> quads, bool useOrtho)
+void drawGeometry(Helicoid helicoid, bool useOrtho = false)
 {
-	mat4 rot = Quad::getRotMatrix();
+	mat4 rot = helicoid.getRotationMatrix();
 	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), view.pos(), view.size());
 	mat4 proj;
-	std::vector<Quad> rotated = std::vector<Quad>(quads);
+	std::vector<Quad> rotated = std::vector<Quad>(helicoid.quads);
 	for (int i = 0; i < rotated.size(); ++i)
 	{
 		for (int j = 0; j < 4; ++j)
@@ -164,6 +250,7 @@ void drawCube(std::vector<Quad> quads, bool useOrtho)
 		std::sort(rotated.begin(), rotated.end(), Quad::comparePerspective);
 		proj = perspective(projCenter);
 	}
+
 	vec3 * projected = new vec3[4];
 	for (int i = 0; i < rotated.size(); ++i)
 	{
@@ -173,16 +260,17 @@ void drawCube(std::vector<Quad> quads, bool useOrtho)
 			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
 		}
 
-		if (win.wireframe)
-		{
-			colorv3(colors.white);
-			glBegin(GL_LINE_LOOP);
-		}
-		else
-		{
-			colorv3(f.color);
-			glBegin(GL_QUADS);
-		}
+		colorv3(f.color);
+		//colorv3(light.calculate(f.color, projected[0], f.getNormal()));
+		glBegin(GL_QUADS);
+		glVertex2f(projected[0].x, projected[0].y);
+		glVertex2f(projected[1].x, projected[1].y);
+		glVertex2f(projected[2].x, projected[2].y);
+		glVertex2f(projected[3].x, projected[3].y);
+		glEnd();
+
+		colorv3(colors.black);
+		glBegin(GL_LINE_LOOP);
 		glVertex2f(projected[0].x, projected[0].y);
 		glVertex2f(projected[1].x, projected[1].y);
 		glVertex2f(projected[2].x, projected[2].y);
@@ -190,51 +278,6 @@ void drawCube(std::vector<Quad> quads, bool useOrtho)
 		glEnd();
 	}
 }
-
-#else
-//Kocka kirajzolása globális tengelyeken forgatva
-void drawCube(std::vector<Quad> quads, bool useOrtho)
-{
-	mat4 w2v = windowToViewport3(vec2(-2, -2), vec2(4.0, 4.0), view.pos(), view.size());
-	mat4 proj;
-	if (useOrtho)
-	{
-		std::sort(quads.begin(), quads.end(), Quad::compareOrtho);
-		proj = ortho();
-	}
-	else
-	{
-		std::sort(quads.begin(), quads.end(), Quad::comparePerspective);
-		proj = perspective(projCenter);
-	}
-	vec3 * projected = new vec3[4];
-	for (int i = 0; i < quads.size(); ++i)
-	{
-		Quad f = quads[i];
-		for (int j = 0; j < 4; ++j)
-		{
-			projected[j] = hToIh(w2v * proj * ihToH(f.points[j]));
-		}
-
-		if (win.wireframe)
-		{
-			colorv3(colors.white);
-			glBegin(GL_LINE_LOOP);
-		}
-		else
-		{
-			colorv3(f.color);
-			glBegin(GL_QUADS);
-		}
-		glVertex2f(projected[0].x, projected[0].y);
-		glVertex2f(projected[1].x, projected[1].y);
-		glVertex2f(projected[2].x, projected[2].y);
-		glVertex2f(projected[3].x, projected[3].y);
-		glEnd();
-	}
-}
-
-#endif
 
 void drawText(float x, float y, const char * s)
 {
@@ -249,7 +292,10 @@ void drawTextOverlay()
 	float top = win.height - 20.0f;
 	std::string str;
 
-	str = "Center = " + std::to_string(projCenter);
+	str = "Framerate: " + std::to_string((int)win.fps);
+	drawText(left, top, str.c_str());
+	top -= 14.0f;
+	str = "C = " + std::to_string(projCenter);
 	drawText(left, top, str.c_str());
 }
 
@@ -276,107 +322,32 @@ void keyProcess(int x)
 	}
 	if (keyPress('c'))
 	{
-		win.wireframe = !win.wireframe;
+		win.ortho = !win.ortho;
 	}
-#ifdef USE_LOCAL_AXES
 	if (keyStates['w'])
 	{
-		Quad::rotation.x -= degToRad(60 * delta);
+		helicoid.rotation.x -= degToRad(60 * delta);
 	}
 	if (keyStates['s'])
 	{
-		Quad::rotation.x += degToRad(60 * delta);
+		helicoid.rotation.x += degToRad(60 * delta);
 	}
 	if (keyStates['a'])
 	{
-		Quad::rotation.y += degToRad(60 * delta);
+		helicoid.rotation.y += degToRad(60 * delta);
 	}
 	if (keyStates['d'])
 	{
-		Quad::rotation.y -= degToRad(60 * delta);
+		helicoid.rotation.y -= degToRad(60 * delta);
 	}
 	if (keyStates['q'])
 	{
-		Quad::rotation.z += degToRad(60 * delta);
+		helicoid.rotation.z += degToRad(60 * delta);
 	}
 	if (keyStates['e'])
 	{
-		Quad::rotation.z -= degToRad(60 * delta);
+		helicoid.rotation.z -= degToRad(60 * delta);
 	}
-#else
-	if (keyStates['w'])
-	{
-		mat4 rot = rotateX(degToRad(-60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-	if (keyStates['s'])
-	{
-		mat4 rot = rotateX(degToRad(60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-	if (keyStates['a'])
-	{
-		mat4 rot = rotateY(degToRad(60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-	if (keyStates['d'])
-	{
-		mat4 rot = rotateY(degToRad(-60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-	if (keyStates['q'])
-	{
-		mat4 rot = rotateZ(degToRad(60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-	if (keyStates['e'])
-	{
-		mat4 rot = rotateZ(degToRad(-60 * delta));
-		for (int i = 0; i < faces.size(); ++i)
-		{
-			Quad * f = &faces[i];
-			for (int j = 0; j < 4; ++j)
-			{
-				f->points[j] = hToIh(rot * ihToH(f->points[j]));
-			}
-		}
-	}
-#endif
 	if (keyStates['r'])
 	{
 		projCenter += 1.0f * delta;
@@ -387,17 +358,47 @@ void keyProcess(int x)
 		if (projCenter < 1.8f)
 			projCenter = 1.8f;
 	}
+	if (keyStates['1'])
+	{
+		helicoid.height += delta;
+		helicoid.build();
+	}
+	if (keyStates['2'])
+	{
+		helicoid.height -= delta;
+		helicoid.build();
+	}
+	if (keyStates['3'])
+	{
+		helicoid.radius += delta;
+		helicoid.build();
+	}
+	if (keyStates['4'])
+	{
+		helicoid.radius -= delta;
+		helicoid.build();
+	}
+	if (keyStates['5'])
+	{
+		helicoid.alpha += 10 * delta;
+		helicoid.build();
+	}
+	if (keyStates['6'])
+	{
+		helicoid.alpha -= 10 * delta;
+		helicoid.build();
+	}
 
 	if (mouseStates[GLUT_LEFT_BUTTON] == GLUT_DOWN)
 	{
-		if (selectedDivider)
-		{
-			win.divider = mousePos.x;
-		}
-		else
-		{
-			view.setPos(mousePos + relativePos);
-		}
+		//if (selectedDivider)
+		//{
+		//	win.divider = mousePos.x;
+		//}
+		//else
+		//{
+		//	view.setPos(mousePos + relativePos);
+		//}
 	}
 
 	memcpy(keyPreviousStates, keyStates, 256 * sizeof(bool));
@@ -431,13 +432,13 @@ void keyUp(int key, int x, int y)
 void mouseButton(int button, int state, int x, int y)
 {
 	mouseStates[button] = state;
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
-	{
-		relativePos = view.pos() - vec2((float)x, (float)win.height - (float)y);
-		printf("relativePos: %f %f\n", relativePos.x, relativePos.y);
-	}
-	printf("%d %d\n", button, state);
-	selectedDivider = (fabs(x - win.divider) < 2.0f);
+	//if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	//{
+	//	relativePos = view.pos() - vec2((float)x, (float)win.height - (float)y);
+	//	printf("relativePos: %f %f\n", relativePos.x, relativePos.y);
+	//}
+	//printf("%d %d\n", button, state);
+	//selectedDivider = (fabs(x - win.divider) < 2.0f);
 }
 
 void mouseMove(int x, int y)
@@ -455,6 +456,7 @@ void getDelta()
 	currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
 	delta = currentTime - previousTime;
 	previousTime = currentTime;
+	win.fps = 1.0 / delta;
 }
 
 void display()
@@ -462,32 +464,13 @@ void display()
 	getDelta();
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	//Kocka merõleges vetítéssel
-	colorv3(colors.white);
-	drawCube(faces, true);
+	//Kirajzolás centrális vetítéssel
+	drawGeometry(helicoid, win.ortho);
 
-	//Bal oldal kitakarása
-	colorv3(colors.sky);
-	glScissor(0.0f, 0.0f, win.divider, win.height);
-	glEnable(GL_SCISSOR_TEST);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glRectf(0.0f, 0.0f, win.divider, win.height);
-
-	//Kocka centrális vetítéssel
-	colorv3(colors.white);
-	drawCube(faces, false);
-
-	glDisable(GL_SCISSOR_TEST);
-
-	//Felezõvonal és szöveg
-	colorv3(colors.black);
-	glBegin(GL_LINES);
-	glVertex2f(win.divider, 0.0f);
-	glVertex2f(win.divider, win.height);
-	glEnd();
-
+	//Szöveg
 	drawTextOverlay();
 
+	printf("%f\n", delta);
 	glutSwapBuffers();
 }
 
@@ -505,31 +488,11 @@ void init()
 	view.left = (win.width - view.width) / 2.0f;
 	view.bottom = (win.height - view.height) / 2.0f;
 	mouseStates[GLUT_LEFT_BUTTON] = GLUT_UP;
-}
-
-void initVectors()
-{
-	points.push_back(vec3(1.0, 1.0, 1.0));		//0
-	points.push_back(vec3(1.0, 1.0, -1.0));		//1
-	points.push_back(vec3(1.0, -1.0, 1.0));		//2
-	points.push_back(vec3(1.0, -1.0, -1.0));	//3
-	points.push_back(vec3(-1.0, 1.0, 1.0));		//4
-	points.push_back(vec3(-1.0, 1.0, -1.0));	//5
-	points.push_back(vec3(-1.0, -1.0, 1.0));	//6
-	points.push_back(vec3(-1.0, -1.0, -1.0));	//7
-
-	faces.push_back(Quad(points[7], points[3], points[1], points[5], colors.red));
-	faces.push_back(Quad(points[2], points[6], points[4], points[0], colors.green));
-	faces.push_back(Quad(points[3], points[2], points[0], points[1], colors.blue));
-	faces.push_back(Quad(points[6], points[7], points[5], points[4], colors.yellow));
-	faces.push_back(Quad(points[5], points[1], points[0], points[4], colors.orange));
-	faces.push_back(Quad(points[6], points[2], points[3], points[7], colors.darkblue));
+	helicoid.build();
 }
 
 int main(int argc, char * argv[])
 {
-	initVectors();
-
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowSize(win.width, win.height);
