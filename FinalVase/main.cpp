@@ -87,15 +87,16 @@ struct
 	}
 } view;
 
+// Kamera
 struct
 {
-	float height = 0;
+	float height = 0.5f;
 	float radius = 2;
 	float bearing = 0;
 	mat4 getMatrix()
 	{
 		vec3 eye = vec3(radius * cos(bearing), height, -radius * sin(bearing));
-		vec3 target = vec3();
+		vec3 target = vec3(0, 0.5f, 0);
 		vec3 up = vec3(0, 1, 0);
 
 		vec3 mz = normalize(eye - target);
@@ -123,7 +124,7 @@ public:
 	}
 	bool isBackfacing()
 	{
-		vec3 v = normalize(win.center - points[0]);
+		vec3 v = normalize(vec3(0, 0, win.center) - points[0]);
 		vec3 n = normalize(getNormal());
 		return dot(n, v) > 0;
 	}
@@ -210,7 +211,7 @@ class Light
 {
 public:
 	vec3 pos;
-	vec3 color;
+	vec4 posH;
 	Light()
 	{
 		this->pos = vec3();
@@ -219,16 +220,19 @@ public:
 	{
 		this->pos = _pos;
 	}
-	vec3 calculate(vec3 qpos, vec3 nrm, vec3 src)
+	void update(mat4 worldViewTransform)
 	{
-		vec3 p = hToIh(cam.getMatrix() * ihToH(this->pos));
-		vec3 l = p - qpos;
-		float mult = (dot(normalize(nrm), normalize(l)) + 1) / 2.0f;
-		return src * mult;
+		this->posH = transpose(inverse(worldViewTransform)) * vec4(this->pos.x, this->pos.y, this->pos.z, 0);
+	}
+	vec3 calculate(Quad q)
+	{
+		vec3 p = vec3(this->pos.x, this->pos.y, this->pos.z);
+		vec3 l = p - q.points[0];
+		float mult = (dot(normalize(l), normalize(q.getNormal())) + 1) / 2.0f;
+		return q.color * mult;
 	}
 };
-
-Light light = Light(vec3(2));
+Light light = Light(vec3(1, 0, 0));
 
 #pragma region GRAPHICS
 
@@ -258,13 +262,12 @@ void buildVase()
 	geometry.clear();
 	for (float phi = 0.0f; phi < 2 * pi(); phi += dPhi)
 	{
-		geometry.push_back(Quad(vasePoint(phi, 0), vasePoint(phi + dPhi, 0), vec3(), vec3()));
 		for (float h = 0.0f; h < 1.0f; h += dH)
 		{
 			vec3 p0 = vasePoint(phi, h);
-			vec3 p1 = vasePoint(phi + dPhi, h);
-			vec3 p2 = vasePoint(phi + dPhi, h + dH);
 			vec3 p3 = vasePoint(phi, h + dH);
+			vec3 p2 = vasePoint(phi + dPhi, h + dH);
+			vec3 p1 = vasePoint(phi + dPhi, h);
 			geometry.push_back(Quad(p0, p1, p2, p3));
 		}
 	}
@@ -289,6 +292,7 @@ void buildVase()
 void drawGeometry()
 {
 	mat4 worldViewProj = cam.getMatrix();
+	light.update(worldViewProj);
 	std::vector<Quad> tr = std::vector<Quad>(geometry.size());
 	for (int i = 0; i < geometry.size(); ++i)
 	{
@@ -296,17 +300,17 @@ void drawGeometry()
 		vec3 p1 = hToIh(worldViewProj * ihToH(geometry[i].points[1]));
 		vec3 p2 = hToIh(worldViewProj * ihToH(geometry[i].points[2]));
 		vec3 p3 = hToIh(worldViewProj * ihToH(geometry[i].points[3]));
-		//tr[i] = Quad(p0, p1, p2, p3, light.calculate(geometry[i].points[0], geometry[i].getNormal(), geometry[i].color));
 		tr[i] = Quad(p0, p1, p2, p3);
 	}
 	std::sort(tr.begin(), tr.end(), Quad::compare);
+
 	mat4 proj = perspective(win.center);
 	mat4 w2v = windowToViewport3(vec2(-1), vec2(2), view.pos(), view.size());
 
 	for (int i = 0; i < tr.size(); ++i)
 	{
 		Quad q = tr[i];
-		color.v3(light.calculate(q.points[0], (q.isBackfacing() ? (-1 * q.getNormal()) : q.getNormal()), q.color));
+		color.v3(light.calculate(q));
 		//color.v3(q.color);
 		glBegin(GL_QUADS);
 		for (int j = 0; j < 4; ++j)
@@ -331,6 +335,7 @@ void drawTextOverlay()
 	float top = win.height - 20.0f;
 	std::string str;
 
+	color.v3(color.white);
 	str = "Framerate: " + std::to_string((int)win.fps);
 	drawText(left, top, str.c_str());
 	top -= 14.0f;
@@ -409,7 +414,6 @@ void inputProcess(int x)
 
 #pragma endregion
 
-
 #pragma region SYSTEM
 
 void display()
@@ -418,9 +422,9 @@ void display()
 	win.fps = 1.0 / t.delta;
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	color.v3(color.black);
+	color.v3(color.white);
 
-	buildVase();
+	//buildVase();
 	drawCurve();
 	drawGeometry();
 
@@ -443,6 +447,7 @@ void init()
 	view.left = (win.width - view.width) / 2.0f;
 	view.bottom = (win.height - view.height) / 2.0f;
 	//mouseStates[GLUT_LEFT_BUTTON] = GLUT_UP;
+	buildVase();
 	printf("begin\n");
 }
 
